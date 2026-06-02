@@ -8,6 +8,7 @@ import com.drew.metadata.Tag;
 import com.drew.metadata.exif.ExifDescriptorBase;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
 import com.mx.entity.PhotoExif;
+import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.util.Map;
  * @system Windows 10 21H2 专业工作站版
  * @Gitee https://gitee.com/mxgitstorage
  */
+@Component
 public class ExifTool {
 
     /**

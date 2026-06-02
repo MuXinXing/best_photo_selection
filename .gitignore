@@ -41,3 +41,8 @@ build/
 
 ### Others ###
 *.md
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+node_modules/

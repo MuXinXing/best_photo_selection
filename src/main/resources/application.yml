@@ -11,5 +11,5 @@ logging:
     com.mx: debug
 
 app:
-  config-dir: ${user.home}/.photo-selection
+  config-dir: "E:/ChromeDownload/best_photo_selection/best_photo_selection/src/main/resources/static/jpg/"
   default-warehouse: ""
