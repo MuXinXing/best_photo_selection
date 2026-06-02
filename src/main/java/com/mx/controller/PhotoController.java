@@ -26,17 +26,17 @@ public class PhotoController {
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> list(
-            @RequestParam(required = false, defaultValue = "all") String status,
-            @RequestParam(required = false, defaultValue = "name") String sort,
-            @RequestParam(required = false, defaultValue = "asc") String order,
-            @RequestParam(required = false, defaultValue = "1") int page,
-            @RequestParam(required = false, defaultValue = "60") int size) {
+            @RequestParam(name = "status", required = false, defaultValue = "all") String status,
+            @RequestParam(name = "sort", required = false, defaultValue = "name") String sort,
+            @RequestParam(name = "order", required = false, defaultValue = "asc") String order,
+            @RequestParam(name = "page", required = false, defaultValue = "1") int page,
+            @RequestParam(name = "size", required = false, defaultValue = "60") int size) {
         Map<String, Object> result = photoService.listPhotos(status, sort, order, page, size);
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PhotoItem> get(@PathVariable String id) {
+    public ResponseEntity<PhotoItem> get(@PathVariable("id") String id) {
         try {
             PhotoItem item = photoService.getPhoto(id);
             return ResponseEntity.ok(item);
@@ -46,7 +46,7 @@ public class PhotoController {
     }
 
     @GetMapping("/{id}/file")
-    public ResponseEntity<Resource> file(@PathVariable String id) {
+    public ResponseEntity<Resource> file(@PathVariable("id") String id) {
         try {
             File photoFile = photoService.getPhotoFile(id);
             if (!photoFile.exists()) {
@@ -64,7 +64,7 @@ public class PhotoController {
     }
 
     @PostMapping("/{id}/mark")
-    public ResponseEntity<Void> mark(@PathVariable String id, @RequestBody Map<String, String> body) {
+    public ResponseEntity<Void> mark(@PathVariable("id") String id, @RequestBody Map<String, String> body) {
         try {
             String status = body.get("status");
             if (status == null || (!PhotoItem.STATUS_SELECTED.equals(status)

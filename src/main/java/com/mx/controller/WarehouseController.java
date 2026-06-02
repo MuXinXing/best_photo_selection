@@ -34,13 +34,13 @@ public class WarehouseController {
     }
 
     @PutMapping("/{id}/active")
-    public ResponseEntity<Void> setActive(@PathVariable String id) {
+    public ResponseEntity<Void> setActive(@PathVariable("id") String id) {
         warehouseService.setActive(id);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> remove(@PathVariable String id) {
+    public ResponseEntity<Void> remove(@PathVariable("id") String id) {
         warehouseService.removeWarehouse(id);
         return ResponseEntity.ok().build();
     }
