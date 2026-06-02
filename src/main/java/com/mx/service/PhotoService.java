@@ -191,7 +191,7 @@ public class PhotoService {
     private PhotoItem buildPhotoItem(Path jpgPath, String warehousePath) {
         String relativePath = warehousePath.isEmpty()
                 ? jpgPath.toString()
-                : jpgPath.toString().replace(warehousePath.replace("\\", "/") + "/", "");
+                : Paths.get(warehousePath).relativize(jpgPath).toString();
         relativePath = relativePath.replace("\\", "/");
         String fileName = jpgPath.getFileName().toString();
         String id = Base64.getUrlEncoder().withoutPadding()
