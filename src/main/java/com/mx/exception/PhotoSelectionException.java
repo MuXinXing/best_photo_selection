@@ -6,5 +6,17 @@ package com.mx.exception;
  * @system Windows 10 21H2 专业工作站版
  * @Gitee https://gitee.com/mxgitstorage
  */
-public class PhotoSelectionException extends Exception{
+public class PhotoSelectionException extends Exception {
+
+    public PhotoSelectionException() {
+        super();
+    }
+
+    public PhotoSelectionException(String message) {
+        super(message);
+    }
+
+    public PhotoSelectionException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

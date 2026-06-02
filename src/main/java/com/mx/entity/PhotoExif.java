@@ -19,4 +19,5 @@ public class PhotoExif {
     private String flash;
     private String focalLength;
     private String lenInfo;
+    private String dateTaken;
 }

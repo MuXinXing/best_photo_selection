@@ -22,6 +22,10 @@ import java.util.Map;
  */
 public class ExifTool {
 
+    /**
+     * @Author MX
+     * @function 获取单张图片exif信息
+     * */
     public void readerExif(String fileName) {
         File photoFile = new File(fileName);
         try {
@@ -36,12 +40,19 @@ public class ExifTool {
         }
     }
 
+    /**
+     * @Author MX
+     * @function 获取指定的EXIF信息
+     * */
     public PhotoExif readerSpecificExif(String fileName) {
         File file = new File(fileName);
         PhotoExif photoExif = new PhotoExif();
         try {
             Metadata metadata = ImageMetadataReader.readMetadata(file);
             ExifSubIFDDirectory directory = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
+            if (directory == null) {
+                return photoExif;
+            }
             String makerNote = directory.getDescription(ExifSubIFDDirectory.TAG_MODEL);
             String fNumber = directory.getDescription(ExifSubIFDDirectory.TAG_APERTURE);
             String shutterSpeed = directory.getDescription(ExifSubIFDDirectory.TAG_SHUTTER_SPEED);
@@ -49,6 +60,7 @@ public class ExifTool {
             String flash = directory.getDescription(ExifSubIFDDirectory.TAG_FLASH);
             String focalLength = directory.getDescription(ExifSubIFDDirectory.TAG_FOCAL_LENGTH);
             String lenInfo = directory.getDescription(ExifSubIFDDirectory.TAG_LENS_MODEL);
+            String dateTaken = directory.getDescription(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
             photoExif.setMakerNote(makerNote);
             photoExif.setFNumber(fNumber);
             photoExif.setShutterSpeed(shutterSpeed);
@@ -56,6 +68,7 @@ public class ExifTool {
             photoExif.setFlash(flash);
             photoExif.setFocalLength(focalLength);
             photoExif.setLenInfo(lenInfo);
+            photoExif.setDateTaken(dateTaken);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
