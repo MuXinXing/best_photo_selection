@@ -1,8 +1,7 @@
 package com.mx;
 
 import com.mx.util.ExifTool;
-import com.mx.util.FolderCountsTool;
-import lombok.val;
+import com.mx.util.FolderTool;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -17,7 +16,7 @@ import java.util.Arrays;
 
 public class ExifReaderTest {
 
-    private final FolderCountsTool folderCountsTool = new FolderCountsTool();
+    private final FolderTool folderTool = new FolderTool();
     private final ExifTool exifTool = new ExifTool();
     private final String filePath = "/home/mx/下载/超分辨率壁纸/";
 
@@ -30,14 +29,16 @@ public class ExifReaderTest {
 
     @Test
     public void folderTest() {
-        int size = folderCountsTool.folderCounts(filePath);
+        int size = folderTool.folderCounts(filePath);
+        System.out.println(folderTool.getFolderPath());
+        String[] list = folderTool.getFileList();
+        System.out.println(Arrays.toString(list));
         System.out.println(size);
     }
 
-
     @Test
     public void folderSizeTest() {
-        long i = folderCountsTool.folderSizeCount(filePath);
+        long i = folderTool.folderSizeCount(filePath);
         System.out.println("路径："+filePath+"\n文件夹大小为："+i +" MB");
     }
 

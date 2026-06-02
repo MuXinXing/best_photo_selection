@@ -8,28 +8,34 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author MuXin
  * @create By MX-Desktop 2026/3/26 10:25
- * @system Windows 10 21H2 专业工作站版E
+ * @system Windows 10 21H2 专业工作站版
  * @Gitee https://gitee.com/mxgitstorage
  */
 
 @Data
-public class FolderCountsTool {
+public class FolderTool {
+
+    private int files;
+    private String[] fileList;
+    private String folderPath;
 
     public int folderCounts(String path) {
         int fileCounts;
         String[] list = new File(path).list();
-
+        fileList = list;
+        folderPath = path;
         if (list != null) {
             fileCounts = list.length;
         } else {
             return 0;
         }
+        files = list.length;
         return fileCounts;
     }
 
@@ -51,5 +57,9 @@ public class FolderCountsTool {
             throw new RuntimeException(e);
         }
         return folderSize.get() / (1024*1024);
+    }
+
+    public void copyFilesToFolder(String path) {
+
     }
 }
