@@ -33,6 +33,9 @@ public class PhotoService {
     @Autowired
     private ExifTool exifTool;
 
+    @Autowired
+    private ThumbnailService thumbnailService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 照片缓存 key=Base64(id), value=照片对象 */
@@ -84,6 +87,17 @@ public class PhotoService {
         }
 
         log.info("Scan completed: {} photos found in warehouse {}", scanned, active.getName());
+
+        // 预生成网格缩略图（400px），避免首次加载时逐张实时生成
+        log.info("Pre-generating thumbnails for {} photos...", scanned);
+        for (PhotoItem item : photoList) {
+            try {
+                thumbnailService.getThumbnail(item.getId(), 400, item.getRelativePath());
+            } catch (Exception e) {
+                log.debug("Skip thumbnail for {}: {}", item.getFileName(), e.getMessage());
+            }
+        }
+        log.info("Thumbnails pre-generated");
     }
 
     /** 按状态/排序/分页查询照片，返回 {total,filtered,selected,rejected,unmarked,rows} */

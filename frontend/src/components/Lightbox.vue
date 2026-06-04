@@ -13,7 +13,7 @@
           @mouseleave="onMouseUp">
           <img ref="imgRef"
             :key="photo?.id"
-            :src="`/api/photos/${photo?.id}/thumbnail?w=1600`"
+            :src="`/api/photos/${photo?.id}/file`"
             class="lightbox-image"
             :class="{ loaded: imageLoaded, zoomed: isZoomed, dragging: isDragging }"
             :style="imageStyle"
