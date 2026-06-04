@@ -113,12 +113,13 @@ public class PhotoService {
         }
 
         List<PhotoItem> all = stream.collect(Collectors.toList());
-        int total = all.size();
+        int total = photoList.size();
+        int filteredTotal = all.size();
         int fromIndex = (page - 1) * size;
-        int toIndex = Math.min(fromIndex + size, total);
+        int toIndex = Math.min(fromIndex + size, filteredTotal);
 
         List<PhotoItem> rows;
-        if (fromIndex >= total) {
+        if (fromIndex >= filteredTotal) {
             rows = Collections.emptyList();
         } else {
             rows = all.subList(fromIndex, toIndex);
@@ -126,6 +127,7 @@ public class PhotoService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("total", total);
+        result.put("filtered", filteredTotal);
         result.put("selected", countByStatus(PhotoItem.STATUS_SELECTED));
         result.put("rejected", countByStatus(PhotoItem.STATUS_REJECTED));
         result.put("unmarked", countByStatus(PhotoItem.STATUS_UNMARKED));
