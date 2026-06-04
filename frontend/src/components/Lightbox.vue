@@ -17,8 +17,7 @@
             :class="{ zoomed: isZoomed, dragging: isDragging }"
             :style="imageStyle"
             @click="onImageClick"
-            draggable="false"
-            @load="resetZoom()">
+            draggable="false">
           <div v-if="isZoomed" class="zoom-hint">拖拽平移</div>
         </div>
         <button class="lightbox-nav lightbox-next" :disabled="!hasNext" @click="resetZoom(); $emit('next')">&#8250;</button>
@@ -31,7 +30,7 @@
             @click="$emit('mark', photo, 'rejected')">&#10005; 落选</button>
           <button class="btn btn-unmark" @click="$emit('mark', photo, 'unmarked')">&#8634; 重置</button>
           <button class="btn btn-zoom" @click="toggleZoom()">
-            {{ isZoomed ? '&#8722; 缩小' : '&#43; 放大' }}
+            {{ zoomLabel }}
           </button>
         </div>
         <div class="lightbox-exif" v-if="exif">
@@ -53,23 +52,34 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({ photo: Object, exif: Object, hasPrev: Boolean, hasNext: Boolean })
 const emit = defineEmits(['prev', 'next', 'mark', 'close'])
 
-const ZOOM_SCALE = 2.5
+/** 缩放档位：原图 → 2x → 4x → 8x，循环 */
+const ZOOM_LEVELS = [1, 2, 4, 8]
 
-const isZoomed = ref(false)
+const zoomLevel = ref(0)          // ZOOM_LEVELS 的索引，0 = 原图
 const isDragging = ref(false)
+const wasDragged = ref(false)     // 区分点击和拖拽
 const dragStart = ref({ x: 0, y: 0 })
 const offset = ref({ x: 0, y: 0 })
 const lastOffset = ref({ x: 0, y: 0 })
 
-function onImageClick(e) {
+// 切换照片时重置缩放
+watch(() => props.photo, () => resetZoom())
+
+const isZoomed = computed(() => zoomLevel.value > 0)
+
+function onImageClick() {
   // 拖拽后不触发放大/缩小
-  if (isDragging.value) return
-  isZoomed.value = !isZoomed.value
+  if (wasDragged.value) {
+    wasDragged.value = false
+    return
+  }
+  // 循环下一档
+  zoomLevel.value = (zoomLevel.value + 1) % ZOOM_LEVELS.length
   if (!isZoomed.value) {
     offset.value = { x: 0, y: 0 }
     lastOffset.value = { x: 0, y: 0 }
@@ -77,16 +87,19 @@ function onImageClick(e) {
 }
 
 function toggleZoom() {
-  isZoomed.value = !isZoomed.value
-  if (!isZoomed.value) {
+  if (isZoomed.value) {
+    zoomLevel.value = 0
     offset.value = { x: 0, y: 0 }
     lastOffset.value = { x: 0, y: 0 }
+  } else {
+    zoomLevel.value = 1
   }
 }
 
 function resetZoom() {
-  isZoomed.value = false
+  zoomLevel.value = 0
   isDragging.value = false
+  wasDragged.value = false
   offset.value = { x: 0, y: 0 }
   lastOffset.value = { x: 0, y: 0 }
 }
@@ -94,14 +107,19 @@ function resetZoom() {
 function onMouseDown(e) {
   if (!isZoomed.value) return
   isDragging.value = true
+  wasDragged.value = false
   dragStart.value = { x: e.clientX, y: e.clientY }
   lastOffset.value = { ...offset.value }
 }
 
 function onMouseMove(e) {
   if (!isDragging.value) return
+  // 移动超过 3px 才算拖拽（防手抖）
   const dx = e.clientX - dragStart.value.x
   const dy = e.clientY - dragStart.value.y
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    wasDragged.value = true
+  }
   offset.value = {
     x: lastOffset.value.x + dx,
     y: lastOffset.value.y + dy
@@ -112,10 +130,17 @@ function onMouseUp() {
   isDragging.value = false
 }
 
+const zoomScale = computed(() => ZOOM_LEVELS[zoomLevel.value])
+
+const zoomLabel = computed(() => {
+  if (!isZoomed.value) return '+ 放大'
+  return `×${zoomScale.value} ${zoomLevel.value === ZOOM_LEVELS.length - 1 ? '缩小' : '放大'}`
+})
+
 const imageStyle = computed(() => {
   if (!isZoomed.value) return {}
   return {
-    transform: `translate(${offset.value.x}px, ${offset.value.y}px) scale(${ZOOM_SCALE})`,
+    transform: `translate(${offset.value.x}px, ${offset.value.y}px) scale(${zoomScale.value})`,
     cursor: isDragging.value ? 'grabbing' : 'grab'
   }
 })
