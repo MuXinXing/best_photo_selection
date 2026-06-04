@@ -335,6 +335,38 @@ html, body {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  transition: transform 0.25s ease;
+  cursor: zoom-in;
+}
+
+.lightbox-image.zoomed {
+  transition: none;
+  cursor: grab;
+}
+
+.lightbox-image.dragging {
+  cursor: grabbing;
+}
+
+.zoom-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #ccc;
+  font-size: 13px;
+  padding: 4px 14px;
+  border-radius: 20px;
+  pointer-events: none;
+  animation: fadeInOut 2s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .lightbox-nav {
@@ -450,6 +482,15 @@ html, body {
 }
 
 .btn-unmark:hover { background: #2a2a2a; color: #fff; }
+
+.btn-zoom {
+  background: transparent;
+  color: #4fc3f7;
+  border: 1px solid #4fc3f7;
+  margin-left: auto;
+}
+
+.btn-zoom:hover { background: #4fc3f7; color: #000; }
 
 /* ====== MODAL ====== */
 .modal-overlay {
