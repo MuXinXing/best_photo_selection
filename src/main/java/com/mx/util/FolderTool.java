@@ -1,6 +1,7 @@
 package com.mx.util;
 
 import lombok.Data;
+import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 
 @Data
+@Component
 public class FolderTool {
 
     private int files;

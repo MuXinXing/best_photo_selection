@@ -178,20 +178,19 @@ html, body {
 }
 
 .photo-grid {
-  column-count: 6;
-  column-gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
   max-width: 1600px;
   margin: 0 auto;
 }
 
-@media (max-width:1600px){.photo-grid{column-count:5}}
-@media (max-width:1200px){.photo-grid{column-count:4}}
-@media (max-width:900px){.photo-grid{column-count:3}}
-@media (max-width:600px){.photo-grid{column-count:2}}
+@media (max-width:1600px){.photo-grid{grid-template-columns:repeat(5,1fr)}}
+@media (max-width:1200px){.photo-grid{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:900px){.photo-grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:600px){.photo-grid{grid-template-columns:repeat(2,1fr)}}
 
 .photo-card {
-  break-inside: avoid;
-  margin-bottom: 12px;
   border-radius: 8px;
   overflow: hidden;
   background: #1e1e1e;
