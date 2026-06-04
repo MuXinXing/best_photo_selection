@@ -187,7 +187,6 @@ function onChangeSort(sort) {
 async function onOpenLightbox(photo) {
   lightboxIndex.value = photos.value.findIndex(p => p.id === photo.id)
   lightboxPhoto.value = photo
-  lightboxExif.value = null
   showLightbox.value = true
   try {
     lightboxExif.value = await api.getPhoto(photo.id)
