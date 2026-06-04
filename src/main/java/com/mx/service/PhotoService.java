@@ -74,6 +74,7 @@ public class PhotoService {
                         String name = p.getFileName().toString().toLowerCase();
                         return name.endsWith(".jpg") || name.endsWith(".jpeg");
                     })
+                    .filter(p -> !p.startsWith(Paths.get(active.getPath(), ".thumbnails")))
                     .sorted()
                     .collect(Collectors.toList());
 
