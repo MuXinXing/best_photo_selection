@@ -3,6 +3,7 @@ package com.mx.controller;
 import com.mx.entity.PhotoItem;
 import com.mx.exception.PhotoSelectionException;
 import com.mx.service.PhotoService;
+import com.mx.service.ThumbnailService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
@@ -23,6 +24,9 @@ public class PhotoController {
 
     @Autowired
     private PhotoService photoService;
+
+    @Autowired
+    private ThumbnailService thumbnailService;
 
     /** 照片列表：支持按状态过滤、按字段排序、分页 */
     @GetMapping
@@ -62,6 +66,27 @@ public class PhotoController {
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + photoFile.getName() + "\"")
                     .body(resource);
         } catch (PhotoSelectionException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /** 返回指定宽度的缩略图（首次请求自动生成并缓存到磁盘） */
+    @GetMapping("/{id}/thumbnail")
+    public ResponseEntity<Resource> thumbnail(
+            @PathVariable("id") String id,
+            @RequestParam(name = "w", required = false, defaultValue = "400") int width) {
+        try {
+            PhotoItem item = photoService.getPhoto(id);
+            File thumbFile = thumbnailService.getThumbnail(id, width, item.getRelativePath());
+            if (thumbFile == null || !thumbFile.exists()) {
+                return ResponseEntity.notFound().build();
+            }
+            Resource resource = new FileSystemResource(thumbFile);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .body(resource);
+        } catch (Exception e) {
+            log.warn("Failed to generate thumbnail for {}: {}", id, e.getMessage());
             return ResponseEntity.notFound().build();
         }
     }

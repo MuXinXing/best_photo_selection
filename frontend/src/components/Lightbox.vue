@@ -8,7 +8,7 @@
       <div class="lightbox-body">
         <button class="lightbox-nav lightbox-prev" :disabled="!hasPrev" @click="$emit('prev')">&#8249;</button>
         <div class="lightbox-image-wrapper">
-          <img :src="photo?.thumbnailUrl" class="lightbox-image">
+          <img :src="`/api/photos/${photo?.id}/file`" class="lightbox-image">
         </div>
         <button class="lightbox-nav lightbox-next" :disabled="!hasNext" @click="$emit('next')">&#8250;</button>
       </div>

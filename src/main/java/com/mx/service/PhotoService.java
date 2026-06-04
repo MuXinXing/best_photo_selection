@@ -238,7 +238,7 @@ public class PhotoService {
         item.setId(id);
         item.setRelativePath(relativePath);
         item.setFileName(fileName);
-        item.setThumbnailUrl("/api/photos/" + id + "/file");
+        item.setThumbnailUrl("/api/photos/" + id + "/thumbnail?w=400");
         item.setStatus(status);
         item.setFileSize(fileSize);
         item.setDateTaken(dateTaken);
