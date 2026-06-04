@@ -12,11 +12,13 @@
           @mousemove="onMouseMove"
           @mouseleave="onMouseUp">
           <img ref="imgRef"
+            :key="photo?.id"
             :src="`/api/photos/${photo?.id}/file`"
             class="lightbox-image"
-            :class="{ zoomed: isZoomed, dragging: isDragging }"
+            :class="{ loaded: imageLoaded, zoomed: isZoomed, dragging: isDragging }"
             :style="imageStyle"
             @click="onImageClick"
+            @load="imageLoaded = true"
             draggable="false">
           <div v-if="isZoomed" class="zoom-hint">拖拽平移</div>
         </div>
@@ -66,9 +68,15 @@ const wasDragged = ref(false)     // 区分点击和拖拽
 const dragStart = ref({ x: 0, y: 0 })
 const offset = ref({ x: 0, y: 0 })
 const lastOffset = ref({ x: 0, y: 0 })
+const imageLoaded = ref(false)    // 当前图片是否加载完成
 
-// 切换照片时重置缩放
-watch(() => props.photo, () => resetZoom())
+// 切换照片时重置缩放和加载状态
+watch(() => props.photo, () => {
+  zoomLevel.value = 0
+  offset.value = { x: 0, y: 0 }
+  lastOffset.value = { x: 0, y: 0 }
+  imageLoaded.value = false
+})
 
 const isZoomed = computed(() => zoomLevel.value > 0)
 
