@@ -19,7 +19,7 @@
     @change-sort="onChangeSort"
   />
   <PhotoGrid
-    :photos="photos"
+    :photos="displayPhotos"
     :loading="loading"
     @open="onOpenLightbox"
   />
@@ -34,7 +34,7 @@
     :photo="lightboxPhoto"
     :exif="lightboxExif"
     :hasPrev="lightboxIndex > 0"
-    :hasNext="lightboxIndex < photos.length - 1"
+    :hasNext="lightboxIndex < displayPhotos.length - 1"
     @prev="onLightboxPrev"
     @next="onLightboxNext"
     @mark="onMark"
@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import * as api from './api/index.js'
 import TopBar from './components/TopBar.vue'
 import FilterBar from './components/FilterBar.vue'
@@ -77,6 +77,44 @@ const lightboxIndex = ref(-1)
 const statusFilter = ref('all')
 const sortBy = ref('name')
 const sortOrder = ref('asc')
+
+function getColumnCount() {
+  const w = window.innerWidth
+  if (w > 1600) return 6
+  if (w > 1200) return 5
+  if (w > 900) return 4
+  if (w > 600) return 3
+  return 2
+}
+
+function reorderForColumns(arr, cols) {
+  if (cols <= 1 || arr.length <= cols) return arr
+  const rows = Math.ceil(arr.length / cols)
+  const total = cols * rows
+  const result = new Array(total)
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const oldIdx = r * cols + c
+      if (oldIdx < arr.length) {
+        result[c * rows + r] = arr[oldIdx]
+      }
+    }
+  }
+  return result.filter(item => item !== undefined)
+}
+
+const columnCount = ref(getColumnCount())
+
+function onResize() {
+  columnCount.value = getColumnCount()
+}
+
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
+
+const displayPhotos = computed(() =>
+  reorderForColumns(photos.value, columnCount.value)
+)
 
 async function fetchWarehouses() {
   warehouses.value = await api.getWarehouses()
@@ -160,13 +198,13 @@ async function onOpenLightbox(photo, index) {
 
 function onLightboxPrev() {
   if (lightboxIndex.value > 0) {
-    onOpenLightbox(photos.value[lightboxIndex.value - 1], lightboxIndex.value - 1)
+    onOpenLightbox(displayPhotos.value[lightboxIndex.value - 1], lightboxIndex.value - 1)
   }
 }
 
 function onLightboxNext() {
-  if (lightboxIndex.value < photos.value.length - 1) {
-    onOpenLightbox(photos.value[lightboxIndex.value + 1], lightboxIndex.value + 1)
+  if (lightboxIndex.value < displayPhotos.value.length - 1) {
+    onOpenLightbox(displayPhotos.value[lightboxIndex.value + 1], lightboxIndex.value + 1)
   }
 }
 
