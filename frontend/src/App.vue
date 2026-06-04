@@ -212,6 +212,11 @@ async function onMark(photo, status) {
   try {
     await api.markPhoto(photo.id, status)
     photo.status = status
+    // 当前有状态过滤且照片新状态与过滤条件不符 → 从列表移除
+    if (statusFilter.value !== 'all' && photo.status !== statusFilter.value) {
+      photos.value = photos.value.filter(p => p.id !== photo.id)
+      showLightbox.value = false
+    }
     const stats = await api.getStatistics()
     selected.value = stats.selected || 0
     rejected.value = stats.rejected || 0
