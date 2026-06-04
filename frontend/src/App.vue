@@ -34,7 +34,7 @@
     :photo="lightboxPhoto"
     :exif="lightboxExif"
     :hasPrev="lightboxIndex > 0"
-    :hasNext="lightboxIndex < displayPhotos.length - 1"
+    :hasNext="lightboxIndex < photos.length - 1"
     @prev="onLightboxPrev"
     @next="onLightboxNext"
     @mark="onMark"
@@ -184,8 +184,8 @@ function onChangeSort(sort) {
   loadPhotos()
 }
 
-async function onOpenLightbox(photo, index) {
-  lightboxIndex.value = index
+async function onOpenLightbox(photo) {
+  lightboxIndex.value = photos.value.findIndex(p => p.id === photo.id)
   lightboxPhoto.value = photo
   lightboxExif.value = null
   showLightbox.value = true
@@ -198,13 +198,13 @@ async function onOpenLightbox(photo, index) {
 
 function onLightboxPrev() {
   if (lightboxIndex.value > 0) {
-    onOpenLightbox(displayPhotos.value[lightboxIndex.value - 1], lightboxIndex.value - 1)
+    onOpenLightbox(photos.value[lightboxIndex.value - 1])
   }
 }
 
 function onLightboxNext() {
-  if (lightboxIndex.value < displayPhotos.value.length - 1) {
-    onOpenLightbox(displayPhotos.value[lightboxIndex.value + 1], lightboxIndex.value + 1)
+  if (lightboxIndex.value < photos.value.length - 1) {
+    onOpenLightbox(photos.value[lightboxIndex.value + 1])
   }
 }
 
