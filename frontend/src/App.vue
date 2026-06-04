@@ -157,7 +157,7 @@ async function loadPhotos() {
       sort: sortBy.value,
       order: sortOrder.value,
       page: 1,
-      size: 500
+      size: 0
     })
     photos.value = data.rows || []
     total.value = data.total || 0

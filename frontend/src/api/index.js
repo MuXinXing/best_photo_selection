@@ -33,8 +33,8 @@ export function getPhotos(params = {}) {
     status: params.status || 'all',
     sort: params.sort || 'name',
     order: params.order || 'asc',
-    page: String(params.page || 1),
-    size: String(params.size || 60)
+    page: String(params.page > 0 ? params.page : 1),
+    size: String(params.size >= 0 ? params.size : 60)
   }).toString()
   return request(`/photos?${qs}`).then(r => r.json())
 }

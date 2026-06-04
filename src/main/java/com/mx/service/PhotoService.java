@@ -143,14 +143,19 @@ public class PhotoService {
         List<PhotoItem> all = stream.collect(Collectors.toList());
         int total = photoList.size();
         int filteredTotal = all.size();
-        int fromIndex = (page - 1) * size;
-        int toIndex = Math.min(fromIndex + size, filteredTotal);
+        int toIndex;
+        if (size <= 0) {
+            toIndex = filteredTotal;
+        } else {
+            int fromIndex = (page - 1) * size;
+            toIndex = Math.min(fromIndex + size, filteredTotal);
+        }
 
         List<PhotoItem> rows;
-        if (fromIndex >= filteredTotal) {
+        if (toIndex <= 0) {
             rows = Collections.emptyList();
         } else {
-            rows = all.subList(fromIndex, toIndex);
+            rows = all.subList(0, toIndex);
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
