@@ -35,10 +35,14 @@ public class PhotoService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** 照片缓存 key=Base64(id), value=照片对象 */
     private final Map<String, PhotoItem> photoCache = new LinkedHashMap<>();
+    /** 全量照片列表，用于排序、过滤、统计 */
     private final List<PhotoItem> photoList = new ArrayList<>();
+    /** 精选/落选状态数据，从 .selection_status.json 加载 */
     private StatusData statusData = new StatusData();
 
+    /** 重新扫描当前仓库，重建缓存和状态 */
     public void rescan() {
         photoCache.clear();
         photoList.clear();
@@ -59,6 +63,7 @@ public class PhotoService {
 
         int scanned = 0;
         try (Stream<Path> paths = Files.walk(Paths.get(active.getPath()))) {
+            // 递归扫描仓库目录，只保留 .jpg/.jpeg 文件
             List<Path> jpgFiles = paths
                     .filter(Files::isRegularFile)
                     .filter(p -> {
@@ -81,6 +86,7 @@ public class PhotoService {
         log.info("Scan completed: {} photos found in warehouse {}", scanned, active.getName());
     }
 
+    /** 按状态/排序/分页查询照片，返回 {total,filtered,selected,rejected,unmarked,rows} */
     public Map<String, Object> listPhotos(String status, String sort, String order, int page, int size) {
         if (photoList.isEmpty()) {
             rescan();
@@ -88,10 +94,12 @@ public class PhotoService {
 
         Stream<PhotoItem> stream = photoList.stream();
 
+        // 状态过滤：all / selected / rejected / unmarked
         if (status != null && !status.isEmpty() && !"all".equalsIgnoreCase(status)) {
             stream = stream.filter(p -> status.equalsIgnoreCase(p.getStatus()));
         }
 
+        // 排序：文件名 / 拍摄日期 / 标记状态
         if (sort != null && !sort.isEmpty()) {
             boolean asc = !"desc".equalsIgnoreCase(order);
             Comparator<PhotoItem> comparator;
@@ -137,6 +145,7 @@ public class PhotoService {
         return result;
     }
 
+    /** 获取单张照片详情（含 EXIF 完整信息） */
     public PhotoItem getPhoto(String id) throws PhotoSelectionException {
         PhotoItem item = photoCache.get(id);
         if (item == null) {
@@ -146,6 +155,7 @@ public class PhotoService {
         return item;
     }
 
+    /** 标记单张照片：selected / rejected / unmarked */
     public void markPhoto(String id, String status) throws PhotoSelectionException {
         PhotoItem item = photoCache.get(id);
         if (item == null) {
@@ -156,6 +166,7 @@ public class PhotoService {
         log.debug("Marked photo {} as {}", id, status);
     }
 
+    /** 批量标记照片 */
     public void batchMark(List<Map<String, String>> marks) {
         for (Map<String, String> mark : marks) {
             String id = mark.get("id");
@@ -169,6 +180,7 @@ public class PhotoService {
         log.info("Batch marked {} photos", marks.size());
     }
 
+    /** 获取全库统计（总数、精选、落选、待筛） */
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("total", photoList.size());
@@ -178,6 +190,7 @@ public class PhotoService {
         return stats;
     }
 
+    /** 根据照片 ID 获取文件系统中的原始文件 */
     public File getPhotoFile(String id) throws PhotoSelectionException {
         PhotoItem item = photoCache.get(id);
         if (item == null) {
@@ -190,15 +203,19 @@ public class PhotoService {
         return new File(active.getPath(), item.getRelativePath());
     }
 
+    /** 将文件系统路径转换为 PhotoItem 对象 */
     private PhotoItem buildPhotoItem(Path jpgPath, String warehousePath) {
+        // 计算相对路径（相对于仓库根目录）
         String relativePath = warehousePath.isEmpty()
                 ? jpgPath.toString()
                 : Paths.get(warehousePath).relativize(jpgPath).toString();
         relativePath = relativePath.replace("\\", "/");
         String fileName = jpgPath.getFileName().toString();
+        // 用 Base64 编码相对路径作为唯一 ID
         String id = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(relativePath.getBytes(StandardCharsets.UTF_8));
 
+        // 恢复上次标记状态（未筛/精选/落选）
         String status = statusData.photos.getOrDefault(relativePath, PhotoItem.STATUS_UNMARKED);
         String dateTaken = null;
         long fileSize = 0;
@@ -207,6 +224,7 @@ public class PhotoService {
             fileSize = Files.size(jpgPath);
         } catch (IOException ignored) {}
 
+        // 读取 EXIF 获取拍摄时间，用于日期排序
         try {
             PhotoExif exif = exifTool.readerSpecificExif(jpgPath.toString());
             if (exif != null) {
@@ -227,6 +245,7 @@ public class PhotoService {
         return item;
     }
 
+    /** 加载 EXIF 完整信息到 PhotoItem（仅在查看详情时调用） */
     private void loadExifData(PhotoItem item) {
         WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
         if (active == null) return;
@@ -251,6 +270,7 @@ public class PhotoService {
         }
     }
 
+    /** 持久化单张照片的标记状态 */
     private void saveStatus(PhotoItem item) {
         WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
         if (active == null) return;
@@ -259,10 +279,12 @@ public class PhotoService {
         saveStatusData(active.getPath());
     }
 
+    /** 统计某状态的照片数量 */
     private long countByStatus(String status) {
         return photoList.stream().filter(p -> status.equals(p.getStatus())).count();
     }
 
+    /** 从仓库目录加载 .selection_status.json */
     private void loadStatusData(String warehousePath) {
         File statusFile = getStatusFile(warehousePath);
         if (statusFile.exists()) {
@@ -278,6 +300,7 @@ public class PhotoService {
         }
     }
 
+    /** 将标记状态写入 .selection_status.json */
     private void saveStatusData(String warehousePath) {
         try {
             File statusFile = getStatusFile(warehousePath);
@@ -292,9 +315,11 @@ public class PhotoService {
         return Paths.get(warehousePath, ".selection_status.json").toFile();
     }
 
+    /** 状态持久化数据结构，JSON 文件自动序列化/反序列化 */
     public static class StatusData {
         public int version = 1;
         public String lastScan = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        /** key=相对路径, value=状态 (selected/rejected/unmarked) */
         public Map<String, String> photos = new LinkedHashMap<>();
     }
 }

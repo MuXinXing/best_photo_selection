@@ -16,18 +16,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author MuXin
- * @create By MX-Desktop 2026/3/25 15:56
- * @system Windows 10 21H2 专业工作站版
- * @Gitee https://gitee.com/mxgitstorage
+ * 照片 EXIF 信息读取工具（基于 metadata-extractor 库）
  */
 @Component
 public class ExifTool {
 
-    /**
-     * @Author MX
-     * @function 获取单张图片exif信息
-     * */
+    /** 打印所有 EXIF 标签（调试用） */
     public void readerExif(String fileName) {
         File photoFile = new File(fileName);
         try {
@@ -42,10 +36,7 @@ public class ExifTool {
         }
     }
 
-    /**
-     * @Author MX
-     * @function 获取指定的EXIF信息
-     * */
+    /** 读取指定的 EXIF 信息：相机型号、光圈、快门、ISO、闪光灯、焦距、镜头、拍摄时间 */
     public PhotoExif readerSpecificExif(String fileName) {
         File file = new File(fileName);
         PhotoExif photoExif = new PhotoExif();

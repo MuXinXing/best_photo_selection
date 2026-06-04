@@ -24,6 +24,7 @@ public class PhotoController {
     @Autowired
     private PhotoService photoService;
 
+    /** 照片列表：支持按状态过滤、按字段排序、分页 */
     @GetMapping
     public ResponseEntity<Map<String, Object>> list(
             @RequestParam(name = "status", required = false, defaultValue = "all") String status,
@@ -35,6 +36,7 @@ public class PhotoController {
         return ResponseEntity.ok(result);
     }
 
+    /** 单张照片详情（含完整 EXIF 信息） */
     @GetMapping("/{id}")
     public ResponseEntity<PhotoItem> get(@PathVariable("id") String id) {
         try {
@@ -45,6 +47,7 @@ public class PhotoController {
         }
     }
 
+    /** 返回 JPG 原图文件流（inline 方式在浏览器中直接显示） */
     @GetMapping("/{id}/file")
     public ResponseEntity<Resource> file(@PathVariable("id") String id) {
         try {
@@ -63,6 +66,7 @@ public class PhotoController {
         }
     }
 
+    /** 标记单张照片：selected / rejected / unmarked */
     @PostMapping("/{id}/mark")
     public ResponseEntity<Void> mark(@PathVariable("id") String id, @RequestBody Map<String, String> body) {
         try {
@@ -79,17 +83,20 @@ public class PhotoController {
         }
     }
 
+    /** 批量标记照片 */
     @PostMapping("/batch-mark")
     public ResponseEntity<Void> batchMark(@RequestBody List<Map<String, String>> marks) {
         photoService.batchMark(marks);
         return ResponseEntity.ok().build();
     }
 
+    /** 获取全库统计数量 */
     @GetMapping("/statistics")
     public ResponseEntity<Map<String, Object>> statistics() {
         return ResponseEntity.ok(photoService.getStatistics());
     }
 
+    /** 触发仓库重新扫描 */
     @PostMapping("/rescan")
     public ResponseEntity<Map<String, Object>> rescan() {
         photoService.rescan();

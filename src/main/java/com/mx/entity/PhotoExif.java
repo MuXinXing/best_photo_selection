@@ -2,22 +2,24 @@ package com.mx.entity;
 
 import lombok.Data;
 
-/**
- * @author MuXin
- * @create By MX-Desktop 2026/3/25 15:46
- * @system Windows 10 21H2 专业工作站版
- * @Gitee https://gitee.com/mxgitstorage
- */
-
+/** EXIF 元数据实体（从 JPG 照片中提取的拍摄参数） */
 @Data
 public class PhotoExif {
 
+    /** 相机型号（从 TAG_MODEL 读取） */
     private String makerNote;
+    /** 光圈值，如 f/2.8 */
     private String fNumber;
+    /** 快门速度，如 1/250 */
     private String shutterSpeed;
+    /** ISO 感光度 */
     private String isoSpeed;
+    /** 闪光灯触发状态 */
     private String flash;
+    /** 焦距，如 50mm */
     private String focalLength;
+    /** 镜头型号 */
     private String lenInfo;
+    /** 原始拍摄时间 */
     private String dateTaken;
 }

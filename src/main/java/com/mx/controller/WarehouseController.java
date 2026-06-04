@@ -17,11 +17,13 @@ public class WarehouseController {
     @Autowired
     private WarehouseService warehouseService;
 
+    /** 获取所有已配置的仓库列表 */
     @GetMapping
     public ResponseEntity<List<WarehouseService.Warehouse>> list() {
         return ResponseEntity.ok(warehouseService.listWarehouses());
     }
 
+    /** 新增仓库 */
     @PostMapping
     public ResponseEntity<WarehouseService.Warehouse> add(@RequestBody Map<String, String> body) {
         String name = body.get("name");
@@ -33,12 +35,14 @@ public class WarehouseController {
         return ResponseEntity.ok(wh);
     }
 
+    /** 切换当前仓库 */
     @PutMapping("/{id}/active")
     public ResponseEntity<Void> setActive(@PathVariable("id") String id) {
         warehouseService.setActive(id);
         return ResponseEntity.ok().build();
     }
 
+    /** 删除仓库 */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> remove(@PathVariable("id") String id) {
         warehouseService.removeWarehouse(id);

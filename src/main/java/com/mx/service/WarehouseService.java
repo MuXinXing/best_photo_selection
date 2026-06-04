@@ -20,6 +20,7 @@ import java.util.UUID;
 @Log4j2
 public class WarehouseService {
 
+    /** 仓库配置文件存储在 ~/.photo-selection/warehouses.json */
     @Value("${app.config-dir}")
     private String configDir;
 
@@ -33,14 +34,17 @@ public class WarehouseService {
         loadWarehouses();
     }
 
+    /** 获取所有已配置的仓库 */
     public List<Warehouse> listWarehouses() {
         return warehouses;
     }
 
+    /** 获取当前活动的仓库 */
     public Warehouse getActiveWarehouse() {
         return activeWarehouse;
     }
 
+    /** 添加新仓库，第一个添加的会自动设为当前仓库 */
     public Warehouse addWarehouse(String name, String path) {
         Warehouse wh = new Warehouse();
         wh.setId(UUID.randomUUID().toString());
@@ -56,6 +60,7 @@ public class WarehouseService {
         return wh;
     }
 
+    /** 切换当前仓库 */
     public void setActive(String id) {
         for (Warehouse wh : warehouses) {
             wh.setActive(wh.getId().equals(id));
@@ -67,6 +72,7 @@ public class WarehouseService {
         log.info("Active warehouse switched to: {}", activeWarehouse != null ? activeWarehouse.getName() : "none");
     }
 
+    /** 删除仓库，如果删除的是当前仓库则自动切换到第一个 */
     public void removeWarehouse(String id) {
         warehouses.removeIf(wh -> {
             if (wh.getId().equals(id)) {
@@ -85,6 +91,7 @@ public class WarehouseService {
         log.info("Removed warehouse: {}", id);
     }
 
+    /** 从 JSON 文件加载仓库配置 */
     private void loadWarehouses() {
         try {
             File configFile = getConfigFile();
@@ -101,6 +108,7 @@ public class WarehouseService {
         }
     }
 
+    /** 将仓库配置写入 JSON 文件 */
     private void saveWarehouses() {
         try {
             File configFile = getConfigFile();
@@ -115,10 +123,12 @@ public class WarehouseService {
         return Paths.get(configDir, "warehouses.json").toFile();
     }
 
+    /** 统一路径格式为 Unix 风格，去除尾部斜杠 */
     private String normalizePath(String path) {
         return path.replace("\\", "/").replaceAll("/+$", "");
     }
 
+    /** 仓库配置数据模型 */
     @Data
     public static class Warehouse {
         private String id;
