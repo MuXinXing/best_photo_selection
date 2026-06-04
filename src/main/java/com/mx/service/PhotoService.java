@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -88,16 +89,20 @@ public class PhotoService {
 
         log.info("Scan completed: {} photos found in warehouse {}", scanned, active.getName());
 
-        // 预生成网格缩略图（400px），避免首次加载时逐张实时生成
-        log.info("Pre-generating thumbnails for {} photos...", scanned);
-        for (PhotoItem item : photoList) {
-            try {
-                thumbnailService.getThumbnail(item.getId(), 400, item.getRelativePath());
-            } catch (Exception e) {
-                log.debug("Skip thumbnail for {}: {}", item.getFileName(), e.getMessage());
+        // 异步预生成缩略图，扫描立即返回，不阻塞前端
+        final List<PhotoItem> forThumbnail = new ArrayList<>(photoList);
+        CompletableFuture.runAsync(() -> {
+            int done = 0;
+            for (PhotoItem item : forThumbnail) {
+                try {
+                    thumbnailService.getThumbnail(item.getId(), 1600, item.getRelativePath());
+                    done++;
+                } catch (Exception e) {
+                    log.debug("Skip thumbnail for {}: {}", item.getFileName(), e.getMessage());
+                }
             }
-        }
-        log.info("Thumbnails pre-generated");
+            log.info("Thumbnails pre-generated: {}/{}", done, forThumbnail.size());
+        });
     }
 
     /** 按状态/排序/分页查询照片，返回 {total,filtered,selected,rejected,unmarked,rows} */
@@ -252,7 +257,7 @@ public class PhotoService {
         item.setId(id);
         item.setRelativePath(relativePath);
         item.setFileName(fileName);
-        item.setThumbnailUrl("/api/photos/" + id + "/thumbnail?w=400");
+        item.setThumbnailUrl("/api/photos/" + id + "/thumbnail?w=1600");
         item.setStatus(status);
         item.setFileSize(fileSize);
         item.setDateTaken(dateTaken);
