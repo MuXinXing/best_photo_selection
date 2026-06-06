@@ -102,17 +102,6 @@ public class PhotoService {
         // 异步预生成缩略图
         final List<PhotoItem> forThumbnail = new ArrayList<>(photoList);
         CompletableFuture.runAsync(() -> {
-            // 检查第一张图的缩略图是否已缓存，是则跳过全部预生成
-            if (!forThumbnail.isEmpty()) {
-                try {
-                    File cached = thumbnailService.getThumbnailCacheFile(
-                            forThumbnail.get(0).getId(), 1600);
-                    if (cached != null && cached.exists()) {
-                        log.debug("Thumbnails already cached, skipping pre-generation");
-                        return;
-                    }
-                } catch (Exception ignored) {}
-            }
             int done = 0;
             for (PhotoItem item : forThumbnail) {
                 try {
@@ -208,10 +197,9 @@ public class PhotoService {
         }
         item.setStatus(status);
         saveStatus(item);
+        // 标记为精选时，复制到"选片"文件夹
         if (PhotoItem.STATUS_SELECTED.equals(status)) {
             copySelectedPhotoToSelection(item);
-        } else if (PhotoItem.STATUS_UNMARKED.equals(status)) {
-            removeSelectedPhotoFromSelection(item);
         }
         log.debug("Marked photo {} as {}", id, status);
     }
@@ -227,8 +215,6 @@ public class PhotoService {
                 saveStatus(item);
                 if (PhotoItem.STATUS_SELECTED.equals(status)) {
                     copySelectedPhotoToSelection(item);
-                } else if (PhotoItem.STATUS_UNMARKED.equals(status)) {
-                    removeSelectedPhotoFromSelection(item);
                 }
             }
         }
@@ -240,13 +226,6 @@ public class PhotoService {
         WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
         if (active == null) return;
         ClassificationService.copyToSelection(active.getPath(), item.getRelativePath());
-    }
-
-    /** 当照片被重置时，从"选片"目录中删除对应的 JPG 和 RAW */
-    private void removeSelectedPhotoFromSelection(PhotoItem item) {
-        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
-        if (active == null) return;
-        ClassificationService.removeFromSelection(active.getPath(), item.getRelativePath());
     }
 
     /** 获取全库统计（总数、精选、落选、待筛） */

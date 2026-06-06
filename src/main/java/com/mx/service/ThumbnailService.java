@@ -50,11 +50,6 @@ public class ThumbnailService {
         return cacheFile;
     }
 
-    /** 获取缩略图缓存文件路径，不触发生成。若仓库未配置返回 null */
-    public File getThumbnailCacheFile(String photoId, int width) {
-        return getCacheFile(photoId, width);
-    }
-
     private File getCacheFile(String photoId, int width) {
         WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
         if (active == null) {
