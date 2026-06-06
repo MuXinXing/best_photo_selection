@@ -193,4 +193,38 @@ public class ClassificationService {
             }
         }
     }
+
+    /**
+     * 从"选片"目录中移除照片（当精选被重置时调用）。
+     * 同时删除对应的 JPG 和 RAW 文件。
+     */
+    public static void removeFromSelection(String warehousePath, String relativeJpgPath) {
+        String jpgFileName = relativeJpgPath.contains("/")
+                ? relativeJpgPath.substring(relativeJpgPath.lastIndexOf('/') + 1)
+                : relativeJpgPath;
+        String root = warehousePath.replace("\\", "/");
+        if (root.endsWith("/JPG")) root = root.substring(0, root.length() - 4);
+
+        // 删除 选片/JPG/xxx.jpg
+        File jpgFile = new File(root + "/选片/JPG/" + jpgFileName);
+        if (jpgFile.exists() && jpgFile.delete()) {
+            log.debug("Removed from selection JPG: {}", jpgFileName);
+        }
+
+        // 删除 选片/RAW/xxx.*（同文件名不同后缀的 RAW）
+        String baseName = jpgFileName.contains(".")
+                ? jpgFileName.substring(0, jpgFileName.lastIndexOf('.'))
+                : jpgFileName;
+        File selectionRawDir = new File(root + "/选片/RAW");
+        if (selectionRawDir.exists()) {
+            File[] matched = selectionRawDir.listFiles((dir, name) -> name.startsWith(baseName + "."));
+            if (matched != null) {
+                for (File f : matched) {
+                    if (f.delete()) {
+                        log.debug("Removed from selection RAW: {}", f.getName());
+                    }
+                }
+            }
+        }
+    }
 }
