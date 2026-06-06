@@ -83,6 +83,27 @@ public class ClassificationService {
      * 完成后 warehouseService 的路径自动切换为 JPG/。
      */
     public void classify(String warehousePath, WarehouseService warehouseService) {
+        // 幂等性检查：若仓库路径已指向 JPG/，跳过
+        if (warehousePath.endsWith("/JPG") || warehousePath.endsWith("\\JPG")) {
+            log.info("Already classified, skipping");
+            classifying = false;
+            currentPhase = "分类完成";
+            return;
+        }
+        // 幂等性检查：若 JPG/ 子目录已存在且非空，说明已分类
+        File jpgCheckDir = new File(warehousePath, "JPG");
+        if (jpgCheckDir.isDirectory()) {
+            String[] files = jpgCheckDir.list();
+            if (files != null && files.length > 0) {
+                log.info("JPG/ directory already exists, skipping classification");
+                String jpgPath = warehousePath.replace("\\", "/") + "/JPG";
+                warehouseService.getActiveWarehouse().setPath(jpgPath);
+                classifying = false;
+                currentPhase = "分类完成";
+                return;
+            }
+        }
+
         classifying = true;
         processedFiles.set(0);
         File root = new File(warehousePath);

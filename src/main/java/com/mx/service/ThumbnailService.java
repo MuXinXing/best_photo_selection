@@ -55,7 +55,12 @@ public class ThumbnailService {
         if (active == null) {
             return null;
         }
-        return Paths.get(active.getPath(), THUMBNAIL_DIR, String.valueOf(width), photoId + ".jpg").toFile();
+        // 缩略图缓存始终放在仓库根目录，若路径指向 JPG/ 则取上级
+        String basePath = active.getPath().replace("\\", "/");
+        if (basePath.endsWith("/JPG")) {
+            basePath = basePath.substring(0, basePath.length() - 4);
+        }
+        return Paths.get(basePath, THUMBNAIL_DIR, String.valueOf(width), photoId + ".jpg").toFile();
     }
 
     private File getSourceFile(String relativePath) {
