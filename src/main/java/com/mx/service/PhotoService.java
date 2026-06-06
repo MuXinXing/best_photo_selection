@@ -37,6 +37,9 @@ public class PhotoService {
     @Autowired
     private ThumbnailService thumbnailService;
 
+    @Autowired
+    private ClassificationService classificationService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 照片缓存 key=Base64(id), value=照片对象 */
@@ -57,16 +60,22 @@ public class PhotoService {
             return;
         }
 
-        File warehouseDir = new File(active.getPath());
+        // 若仓库路径已指向 JPG/ 子目录，状态文件在上级目录
+        String scanPath = active.getPath();
+        String statusPath = scanPath.endsWith("/JPG") || scanPath.endsWith("\\JPG")
+                ? new File(scanPath).getParent().replace("\\", "/")
+                : scanPath;
+
+        File warehouseDir = new File(scanPath);
         if (!warehouseDir.exists() || !warehouseDir.isDirectory()) {
-            log.warn("Warehouse directory does not exist: {}", active.getPath());
+            log.warn("Warehouse directory does not exist: {}", scanPath);
             return;
         }
 
-        loadStatusData(active.getPath());
+        loadStatusData(statusPath);
 
         int scanned = 0;
-        try (Stream<Path> paths = Files.walk(Paths.get(active.getPath()))) {
+        try (Stream<Path> paths = Files.walk(Paths.get(scanPath))) {
             // 递归扫描仓库目录，只保留 .jpg/.jpeg 文件
             List<Path> jpgFiles = paths
                     .filter(Files::isRegularFile)
@@ -74,12 +83,12 @@ public class PhotoService {
                         String name = p.getFileName().toString().toLowerCase();
                         return name.endsWith(".jpg") || name.endsWith(".jpeg");
                     })
-                    .filter(p -> !p.startsWith(Paths.get(active.getPath(), ".thumbnails")))
+                    .filter(p -> !p.startsWith(Paths.get(scanPath, ".thumbnails")))
                     .sorted()
                     .collect(Collectors.toList());
 
             for (Path jpgPath : jpgFiles) {
-                PhotoItem item = buildPhotoItem(jpgPath, active.getPath());
+                PhotoItem item = buildPhotoItem(jpgPath, scanPath);
                 photoCache.put(item.getId(), item);
                 photoList.add(item);
                 scanned++;
@@ -90,7 +99,7 @@ public class PhotoService {
 
         log.info("Scan completed: {} photos found in warehouse {}", scanned, active.getName());
 
-        // 异步预生成缩略图，扫描立即返回，不阻塞前端
+        // 异步预生成缩略图
         final List<PhotoItem> forThumbnail = new ArrayList<>(photoList);
         CompletableFuture.runAsync(() -> {
             int done = 0;
@@ -188,6 +197,10 @@ public class PhotoService {
         }
         item.setStatus(status);
         saveStatus(item);
+        // 标记为精选时，复制到"选片"文件夹
+        if (PhotoItem.STATUS_SELECTED.equals(status)) {
+            copySelectedPhotoToSelection(item);
+        }
         log.debug("Marked photo {} as {}", id, status);
     }
 
@@ -200,9 +213,19 @@ public class PhotoService {
             if (item != null) {
                 item.setStatus(status);
                 saveStatus(item);
+                if (PhotoItem.STATUS_SELECTED.equals(status)) {
+                    copySelectedPhotoToSelection(item);
+                }
             }
         }
         log.info("Batch marked {} photos", marks.size());
+    }
+
+    /** 将精选照片的 JPG 和对应 RAW 复制到"选片"目录 */
+    private void copySelectedPhotoToSelection(PhotoItem item) {
+        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
+        if (active == null) return;
+        ClassificationService.copyToSelection(active.getPath(), item.getRelativePath());
     }
 
     /** 获取全库统计（总数、精选、落选、待筛） */
@@ -295,13 +318,24 @@ public class PhotoService {
         }
     }
 
+    /** 获取状态文件的根路径（若当前仓库路径指向 JPG/，则取上级目录） */
+    private String getStatusRootPath() {
+        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
+        if (active == null) return "";
+        String p = active.getPath();
+        if (p.endsWith("/JPG") || p.endsWith("\\JPG")) {
+            return new File(p).getParent().replace("\\", "/");
+        }
+        return p;
+    }
+
     /** 持久化单张照片的标记状态 */
     private void saveStatus(PhotoItem item) {
         WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
         if (active == null) return;
 
         statusData.photos.put(item.getRelativePath(), item.getStatus());
-        saveStatusData(active.getPath());
+        saveStatusData(getStatusRootPath());
     }
 
     /** 统计某状态的照片数量 */

@@ -2,8 +2,10 @@ package com.mx.controller;
 
 import com.mx.entity.PhotoItem;
 import com.mx.exception.PhotoSelectionException;
+import com.mx.service.ClassificationService;
 import com.mx.service.PhotoService;
 import com.mx.service.ThumbnailService;
+import com.mx.service.WarehouseService;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
@@ -14,8 +16,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/photos")
@@ -27,6 +31,12 @@ public class PhotoController {
 
     @Autowired
     private ThumbnailService thumbnailService;
+
+    @Autowired
+    private ClassificationService classificationService;
+
+    @Autowired
+    private WarehouseService warehouseService;
 
     /** 照片列表：支持按状态过滤、按字段排序、分页 */
     @GetMapping
@@ -126,5 +136,28 @@ public class PhotoController {
     public ResponseEntity<Map<String, Object>> rescan() {
         photoService.rescan();
         return ResponseEntity.ok(photoService.getStatistics());
+    }
+
+    /** 触发仓库分类（将 JPG/RAW 移动到对应子目录） */
+    @PostMapping("/classify")
+    public ResponseEntity<Map<String, Object>> classify() {
+        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
+        if (active == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        CompletableFuture.runAsync(() ->
+                classificationService.classify(active.getPath(), warehouseService)
+        );
+        return ResponseEntity.ok(Map.of("started", true));
+    }
+
+    /** 获取分类进度 */
+    @GetMapping("/classify/progress")
+    public ResponseEntity<Map<String, Object>> classifyProgress() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("classifying", classificationService.isClassifying());
+        result.put("progress", classificationService.getProgress());
+        result.put("phase", classificationService.getCurrentPhase());
+        return ResponseEntity.ok(result);
     }
 }

@@ -64,3 +64,11 @@ export function getStatistics() {
 export function rescan() {
   return request('/photos/rescan', { method: 'POST' }).then(r => r.json())
 }
+
+export function classify() {
+  return request('/photos/classify', { method: 'POST' }).then(r => r.json())
+}
+
+export function getClassifyProgress() {
+  return request('/photos/classify/progress').then(r => r.json())
+}

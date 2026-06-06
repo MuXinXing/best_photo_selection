@@ -49,6 +49,11 @@
     @remove="onRemoveWarehouse"
     @close="showSettings = false"
   />
+  <ClassificationModal
+    v-if="showClassify"
+    :progress="classifyProgress"
+    :phase="classifyPhase"
+  />
 </template>
 
 <script setup>
@@ -60,6 +65,7 @@ import PhotoGrid from './components/PhotoGrid.vue'
 import StatusBar from './components/StatusBar.vue'
 import Lightbox from './components/Lightbox.vue'
 import SettingsModal from './components/SettingsModal.vue'
+import ClassificationModal from './components/ClassificationModal.vue'
 
 const warehouses = ref([])
 const activeId = ref('')
@@ -77,6 +83,34 @@ const lightboxIndex = ref(-1)
 const statusFilter = ref('all')
 const sortBy = ref('name')
 const sortOrder = ref('asc')
+
+const showClassify = ref(false)
+const classifyProgress = ref(0)
+const classifyPhase = ref('')
+
+async function onClassify() {
+  showClassify.value = true
+  classifyProgress.value = 0
+  classifyPhase.value = '正在准备整理...'
+  try {
+    await api.classify()
+    await pollClassifyProgress()
+  } catch (e) {
+    console.error('Classification failed', e)
+  }
+  await loadPhotos()
+  showClassify.value = false
+}
+
+async function pollClassifyProgress() {
+  while (true) {
+    const state = await api.getClassifyProgress()
+    classifyProgress.value = state.progress || 0
+    classifyPhase.value = state.phase || ''
+    if (!state.classifying) break
+    await new Promise(r => setTimeout(r, 500))
+  }
+}
 
 function getColumnCount() {
   const w = window.innerWidth
@@ -121,7 +155,7 @@ async function fetchWarehouses() {
   const active = warehouses.value.find(w => w.active)
   activeId.value = active ? active.id : ''
   if (activeId.value) {
-    await loadPhotos()
+    await onClassify()
   }
 }
 
