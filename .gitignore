@@ -40,7 +40,7 @@ build/
 .DS_Store
 
 ### Others ###
-*.md
+/摄影选图工具Web端设计PRD.md.md
 
 ### Frontend ###
 frontend/node_modules/

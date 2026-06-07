@@ -70,6 +70,7 @@
                     <parameters>true</parameters>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <release>${java.version}</release>
                     <encoding>UTF-8</encoding>
                     <!-- 启用 -parameters 编译器标志 -->
                     <compilerArgument>-parameters</compilerArgument>
