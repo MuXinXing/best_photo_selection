@@ -21,45 +21,50 @@ defineProps({ progress: Number, phase: String })
 
 <style scoped>
 .classify-modal {
-  background: #1e1e1e;
+  background: #33312e;
   border-radius: 12px;
   padding: 32px 40px;
   width: 400px;
   max-width: 90vw;
   text-align: center;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(69, 67, 64, 0.5);
 }
 
 .classify-header h2 {
-  font-size: 18px;
-  color: #fff;
+  font-family: 'Crimson Pro', 'Georgia', 'Songti SC', 'STSong', serif;
+  font-size: 20px;
+  font-weight: 500;
+  color: #b8956a;
   margin-bottom: 20px;
 }
 
 .classify-body p {
-  color: #999;
+  color: #8c8882;
   font-size: 14px;
+  font-family: 'DM Sans', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   margin-bottom: 16px;
 }
 
 .progress-bar-track {
   width: 100%;
-  height: 8px;
-  background: #2a2a2a;
-  border-radius: 4px;
+  height: 6px;
+  background: #3d3b38;
+  border-radius: 3px;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: #f0a500;
-  border-radius: 4px;
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg, #b8956a, #c9a87c);
+  border-radius: 3px;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .progress-text {
-  font-size: 14px;
-  color: #f0a500;
+  font-size: 13px;
+  font-family: 'DM Sans', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #b8956a;
   font-weight: 500;
 }
 </style>
