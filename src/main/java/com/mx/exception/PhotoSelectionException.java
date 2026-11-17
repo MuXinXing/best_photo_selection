@@ -1,22 +1,29 @@
 package com.mx.exception;
 
-/**
- * @author MuXin
- * @create By MX-Desktop 2026/3/26 10:55
- * @system Windows 10 21H2 专业工作站版
- * @Gitee https://gitee.com/mxgitstorage
- */
-public class PhotoSelectionException extends Exception {
+/** 选片业务异常。httpStatus 由统一异常处理转成响应。 */
+public class PhotoSelectionException extends RuntimeException {
 
-    public PhotoSelectionException() {
-        super();
-    }
+    private final int httpStatus;
 
     public PhotoSelectionException(String message) {
+        this(message, 404);
+    }
+
+    public PhotoSelectionException(String message, int httpStatus) {
         super(message);
+        this.httpStatus = httpStatus;
     }
 
     public PhotoSelectionException(String message, Throwable cause) {
+        this(message, 500, cause);
+    }
+
+    public PhotoSelectionException(String message, int httpStatus, Throwable cause) {
         super(message, cause);
+        this.httpStatus = httpStatus;
+    }
+
+    public int getHttpStatus() {
+        return httpStatus;
     }
 }

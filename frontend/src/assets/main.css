@@ -736,6 +736,14 @@ html, body {
   border: 1px solid rgba(184, 149, 106, 0.2);
 }
 
+.classify-hint {
+  font-size: 12px;
+  font-family: var(--font-body);
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
 .warehouse-add h3 {
   font-size: 13px;
   font-family: var(--font-body);

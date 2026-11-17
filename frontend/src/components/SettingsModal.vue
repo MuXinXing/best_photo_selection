@@ -31,6 +31,11 @@
           </div>
           <button class="btn btn-primary" :disabled="!name || !path" @click="onAdd">添加</button>
         </div>
+        <div class="warehouse-add">
+          <h3>整理文件</h3>
+          <p class="classify-hint">把当前仓库根目录的 JPG 和 RAW 移动到 JPG/ 与 RAW/。同名文件已存在时会跳过，不会覆盖。</p>
+          <button class="btn btn-primary" :disabled="!activeId" @click="onClassify">整理当前仓库</button>
+        </div>
       </div>
     </div>
   </div>
@@ -39,7 +44,7 @@
 <script setup>
 import { ref } from 'vue'
 defineProps({ warehouses: Array, activeId: String })
-const emit = defineEmits(['switch', 'add', 'remove', 'close'])
+const emit = defineEmits(['switch', 'add', 'remove', 'classify', 'close'])
 const name = ref('')
 const path = ref('')
 function onAdd() {
@@ -52,6 +57,11 @@ function onAdd() {
 function onRemove(id) {
   if (confirm('确定删除该仓库？')) {
     emit('remove', id)
+  }
+}
+function onClassify() {
+  if (confirm('将把当前仓库根目录下的 JPG 和 RAW 移动到 JPG/ 与 RAW/。已存在的同名文件会跳过，不会覆盖。')) {
+    emit('classify')
   }
 }
 </script>

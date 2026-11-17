@@ -82,7 +82,8 @@ best_photo_selection/
 │   │   │   │   └── ThumbnailService.java             # 缩略图服务
 │   │   │   └── util/
 │   │   │       ├── ExifTool.java                     # EXIF 读取工具
-│   │   │       └── FolderTool.java                   # 文件夹工具
+│   │   │       ├── WarehouseFiles.java               # 选片复制与 RAW 匹配
+│   │   │       └── WarehouseLayout.java              # 片仓路径规则
 │   │   └── resources/
 │   │       ├── application.yml                       # 主配置
 │   │       └── application-dev.yml                   # 开发环境配置
@@ -171,6 +172,7 @@ java -jar target/selection-1.0.0.jar
 ```yaml
 server:
   port: 8080
+  address: 127.0.0.1
 
 spring:
   jackson:
@@ -235,7 +237,7 @@ logging:
 | `status` | string | 筛选状态：`selected`, `rejected`, `unmarked` |
 | `sort` | string | 排序字段：`name`, `date`, `status` |
 | `order` | string | 排序方向：`asc`, `desc` |
-| `page` | int | 页码 (从0开始) |
+| `page` | int | 页码（从 1 开始） |
 | `size` | int | 每页数量 (0=不分页) |
 
 ---
@@ -243,7 +245,7 @@ logging:
 ## 🖥 使用流程
 
 1. **添加片仓** — 点击齿轮图标，添加你的照片目录
-2. **自动归类** — 首次添加时会提示归类，将 JPG/RAW 分到子目录
+2. **整理文件** — 在仓库设置里确认后，把根目录的 JPG/RAW 移动到子目录。同名文件已存在时会跳过
 3. **浏览选片** — 在瀑布流中浏览，点击照片进入大图模式
 4. **标记状态** — 使用按钮标记「精选」或「落选」（支持键盘快捷键）
 5. **筛选排序** — 按状态筛选、按日期/名称排序

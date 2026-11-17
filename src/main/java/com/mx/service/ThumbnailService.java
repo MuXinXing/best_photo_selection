@@ -1,73 +1,65 @@
 package com.mx.service;
 
+import com.mx.util.WarehouseLayout;
 import lombok.extern.log4j.Log4j2;
 import net.coobird.thumbnailator.Thumbnails;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 缩略图生成与磁盘缓存服务
- *
- * 缓存目录结构: {warehouse}/.thumbnails/{width}/{photoId}.jpg
- * - 首次请求指定宽度的缩略图时，从原图生成并写入缓存
- * - 后续请求直接返回缓存文件，避免重复生成
+ * 缩略图磁盘缓存。宽度限制在 200–1600，同一张图同一宽度同时只生成一次。
+ * 缓存放在片仓根的 .thumbnails/{width}/{photoId}.jpg。
  */
 @Service
 @Log4j2
 public class ThumbnailService {
 
-    @Autowired
-    private WarehouseService warehouseService;
-
     private static final String THUMBNAIL_DIR = ".thumbnails";
 
+    private final WarehouseService warehouseService;
+    private final ConcurrentHashMap<String, Object> generationLocks = new ConcurrentHashMap<>();
+
+    public ThumbnailService(WarehouseService warehouseService) {
+        this.warehouseService = warehouseService;
+    }
+
     public File getThumbnail(String photoId, int width, String relativePath) throws IOException {
-        File cacheFile = getCacheFile(photoId, width);
-        if (cacheFile.exists()) {
-            return cacheFile;
+        if (photoId == null || !photoId.matches("[A-Za-z0-9_-]+")) {
+            throw new IOException("非法照片编号");
         }
-
-        File sourceFile = getSourceFile(relativePath);
-        if (!sourceFile.exists()) {
-            throw new IOException("Source file not found: " + sourceFile.getAbsolutePath());
-        }
-
-        cacheFile.getParentFile().mkdirs();
-
-        Thumbnails.of(sourceFile)
-                .width(width)
-                .outputQuality(0.85)
-                .outputFormat("jpg")
-                .toFile(cacheFile);
-
-        log.debug("Generated thumbnail: {} ({}px)", cacheFile.getName(), width);
-        return cacheFile;
-    }
-
-    private File getCacheFile(String photoId, int width) {
         WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
         if (active == null) {
-            return null;
+            throw new IOException("没有活动片仓");
         }
-        // 缩略图缓存始终放在仓库根目录，若路径指向 JPG/ 则取上级
-        String basePath = active.getPath().replace("\\", "/");
-        if (basePath.endsWith("/JPG")) {
-            basePath = basePath.substring(0, basePath.length() - 4);
+        int clamped = WarehouseLayout.clampThumbnailWidth(width);
+        Path root = WarehouseLayout.rootPath(active.getPath());
+        Path cacheDir = WarehouseLayout.ensureDirInside(root, root.resolve(THUMBNAIL_DIR).resolve(String.valueOf(clamped)));
+        Path cache = cacheDir.resolve(photoId + ".jpg").normalize();
+        if (!WarehouseLayout.isInside(root, cache)) {
+            throw new IOException("缩略图路径超出片仓");
         }
-        return Paths.get(basePath, THUMBNAIL_DIR, String.valueOf(width), photoId + ".jpg").toFile();
-    }
-
-    private File getSourceFile(String relativePath) {
-        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
-        if (active == null) {
-            return null;
+        Object lock = generationLocks.computeIfAbsent(photoId + ":" + clamped, key -> new Object());
+        synchronized (lock) {
+            if (Files.exists(cache)) {
+                return cache.toFile();
+            }
+            Path scanRoot = WarehouseLayout.scanRoot(active.getPath());
+            Path source = scanRoot.resolve(relativePath).normalize();
+            if (!WarehouseLayout.isInside(scanRoot, source) || !Files.isRegularFile(source)) {
+                throw new IOException("源文件不在片仓内");
+            }
+            Thumbnails.of(source.toFile())
+                    .width(clamped)
+                    .outputQuality(0.85)
+                    .outputFormat("jpg")
+                    .toFile(cache.toFile());
+            log.debug("Generated thumbnail: {} ({}px)", cache.getFileName(), clamped);
+            return cache.toFile();
         }
-        return new File(active.getPath(), relativePath);
     }
 }

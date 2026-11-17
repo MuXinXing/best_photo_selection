@@ -1,217 +1,189 @@
 package com.mx.service;
 
+import com.mx.util.WarehouseFiles;
+import com.mx.util.WarehouseLayout;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 /**
- * 照片分类服务：将仓库根目录的 JPG/RAW 移动到对应子文件夹，
- * 并支持将精选照片复制到"选片"目录。
+ * 把片仓根目录的 JPG/RAW 移到子目录。同一时间只允许一个分类任务。
+ * 目标已存在时跳过，不覆盖。
  */
 @Service
 @Log4j2
 public class ClassificationService {
 
-    /** 所有已知 RAW 文件后缀（大小写不敏感） */
-    private static final Set<String> RAW_EXTENSIONS = new HashSet<>(Arrays.asList(
-            "cr2", "cr3", "crw",       // 佳能 Canon
-            "nef", "nrw",               // 尼康 Nikon
-            "arw", "srf", "sr2",        // 索尼 Sony
-            "raf",                      // 富士 Fujifilm
-            "rw2",                      // 松下 Panasonic
-            "orf",                      // 奥林巴斯 Olympus
-            "pef",                      // 宾得 Pentax
-            "dng", "rwl",               // 徕卡 Leica / Adobe
-            "x3f",                      // 适马 Sigma
-            "3fr", "fff",               // 哈苏 Hasselblad
-            "dcr", "kdc",               // 柯达 Kodak
-            "mos",                      // 玛米亚 Leaf
-            "stn",                      // 仙娜 Sinar
-            "mrw",                      // 美能达 Minolta
-            "iiq",                      // 飞思 Phase One
-            "srw"                       // 三星 Samsung
-    ));
+    private final WarehouseService warehouseService;
+    private final ExecutorService classificationExecutor;
 
+    private final AtomicBoolean classifying = new AtomicBoolean(false);
     private final AtomicInteger totalFiles = new AtomicInteger(0);
     private final AtomicInteger processedFiles = new AtomicInteger(0);
+    private final List<String> skipped = Collections.synchronizedList(new ArrayList<>());
     private volatile String currentPhase = "";
-    private volatile boolean classifying = false;
 
-    /** 判断文件是否为 RAW */
-    public static boolean isRaw(String fileName) {
-        int dot = fileName.lastIndexOf('.');
-        if (dot < 0) return false;
-        return RAW_EXTENSIONS.contains(fileName.substring(dot + 1).toLowerCase());
+    public ClassificationService(WarehouseService warehouseService,
+                                 @Qualifier("classificationExecutor") ExecutorService classificationExecutor) {
+        this.warehouseService = warehouseService;
+        this.classificationExecutor = classificationExecutor;
     }
 
-    /** 判断文件是否为 JPG */
-    public static boolean isJpg(String fileName) {
-        String lower = fileName.toLowerCase();
-        return lower.endsWith(".jpg") || lower.endsWith(".jpeg");
+    public boolean isClassifying() {
+        return classifying.get();
     }
 
-    /** 获取进度百分比（0~100） */
     public int getProgress() {
         int total = totalFiles.get();
-        if (total == 0) return 100;
-        return processedFiles.get() * 100 / total;
+        int processed = processedFiles.get();
+        if (total <= 0) {
+            return classifying.get() ? 0 : 100;
+        }
+        return Math.min(100, processed * 100 / total);
     }
 
-    /** 获取当前阶段描述 */
     public String getCurrentPhase() {
         return currentPhase;
     }
 
-    /** 是否正在分类中 */
-    public boolean isClassifying() {
-        return classifying;
+    public List<String> getSkipped() {
+        synchronized (skipped) {
+            return List.copyOf(skipped);
+        }
     }
 
-    /**
-     * 同步执行分类：扫描仓库根目录，将 JPG 和 RAW 分别移动到对应子文件夹。
-     * 完成后 warehouseService 的路径自动切换为 JPG/。
-     */
-    public void classify(String warehousePath, WarehouseService warehouseService) {
-        // 幂等性检查：若仓库路径已指向 JPG/，跳过
-        if (warehousePath.endsWith("/JPG") || warehousePath.endsWith("\\JPG")) {
-            log.info("Already classified, skipping");
-            classifying = false;
+    public boolean start(String warehouseId, String warehousePath) {
+        if (!classifying.compareAndSet(false, true)) {
+            return false;
+        }
+        processedFiles.set(0);
+        totalFiles.set(0);
+        skipped.clear();
+        currentPhase = "正在准备整理...";
+        try {
+            classificationExecutor.execute(() -> {
+                try {
+                    classify(warehouseId, warehousePath);
+                } catch (Exception e) {
+                    log.error("分类失败", e);
+                    currentPhase = "分类失败";
+                } finally {
+                    classifying.set(false);
+                }
+            });
+        } catch (RuntimeException e) {
+            classifying.set(false);
+            throw e;
+        }
+        return true;
+    }
+
+    private void classify(String warehouseId, String warehousePath) throws IOException {
+        String normalized = WarehouseLayout.normalize(warehousePath);
+        if (WarehouseLayout.isJpgFolder(normalized)) {
+            warehouseService.updateWarehousePath(warehouseId, normalized);
             currentPhase = "分类完成";
             return;
         }
-        // 幂等性检查：若 JPG/ 子目录已存在且非空，说明已分类
-        File jpgCheckDir = new File(warehousePath, "JPG");
-        if (jpgCheckDir.isDirectory()) {
-            String[] files = jpgCheckDir.list();
-            if (files != null && files.length > 0) {
-                log.info("JPG/ directory already exists, skipping classification");
-                String jpgPath = warehousePath.replace("\\", "/") + "/JPG";
-                warehouseService.getActiveWarehouse().setPath(jpgPath);
-                classifying = false;
-                currentPhase = "分类完成";
+        Path root = Paths.get(normalized);
+        if (!Files.isDirectory(root)) {
+            currentPhase = "分类失败";
+            log.warn("分类目录不存在: {}", normalized);
+            return;
+        }
+        Path rootReal = root.toRealPath().normalize();
+        Path jpgDir = root.resolve("JPG");
+        if (Files.isDirectory(jpgDir) && WarehouseLayout.isInside(rootReal, jpgDir) && directoryHasEntries(jpgDir)) {
+            Path jpgReal = jpgDir.toRealPath().normalize();
+            if (!jpgReal.startsWith(rootReal)) {
+                currentPhase = "分类失败";
+                log.warn("JPG 目录指向片仓外: {}", jpgDir);
                 return;
             }
+            warehouseService.updateWarehousePath(warehouseId, WarehouseLayout.normalize(jpgReal.toString()));
+            currentPhase = "分类完成";
+            return;
         }
 
-        classifying = true;
-        processedFiles.set(0);
-        File root = new File(warehousePath);
-
-        // 统计待处理的文件数
         currentPhase = "正在扫描文件...";
-        try (Stream<Path> allFiles = Files.walk(root.toPath(), 1)) {
-            long count = allFiles
-                    .filter(Files::isRegularFile)
-                    .filter(p -> {
-                        String name = p.getFileName().toString().toLowerCase();
-                        return name.endsWith(".jpg") || name.endsWith(".jpeg") || isRaw(p.getFileName().toString());
-                    })
-                    .count();
-            totalFiles.set((int) count);
-        } catch (IOException e) {
-            log.error("Failed to scan root directory: {}", e.getMessage());
-            totalFiles.set(0);
+        List<Path> targets = new ArrayList<>();
+        try (Stream<Path> files = Files.list(root)) {
+            for (Path file : files.toList()) {
+                if (shouldMove(rootReal, file)) {
+                    targets.add(file);
+                }
+            }
         }
-
-        if (totalFiles.get() == 0) {
-            classifying = false;
+        totalFiles.set(targets.size());
+        if (targets.isEmpty()) {
             currentPhase = "无需分类";
             return;
         }
 
-        // 创建目标目录
-        File jpgDir = new File(root, "JPG");
-        File rawDir = new File(root, "RAW");
-        File selectionJpgDir = new File(root, "选片/JPG");
-        File selectionRawDir = new File(root, "选片/RAW");
-        jpgDir.mkdirs();
-        rawDir.mkdirs();
-        selectionJpgDir.mkdirs();
-        selectionRawDir.mkdirs();
+        currentPhase = "正在移动文件...";
+        Path jpgTargetDir = WarehouseLayout.ensureDirInside(rootReal, root.resolve("JPG"));
+        Path rawTargetDir = WarehouseLayout.ensureDirInside(rootReal, root.resolve("RAW"));
+        WarehouseLayout.ensureDirInside(rootReal, root.resolve("选片").resolve("JPG"));
+        WarehouseLayout.ensureDirInside(rootReal, root.resolve("选片").resolve("RAW"));
 
-        // 遍历根目录（仅第一层）并移动文件
-        try (Stream<Path> files = Files.list(root.toPath())) {
-            files.filter(Files::isRegularFile).forEach(p -> {
-                String name = p.getFileName().toString();
-                try {
-                    if (isJpg(name)) {
-                        Files.move(p, new File(jpgDir, name).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    } else if (isRaw(name)) {
-                        Files.move(p, new File(rawDir, name).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (IOException e) {
-                    log.warn("Failed to move {}: {}", name, e.getMessage());
+        for (Path file : targets) {
+            String name = file.getFileName().toString();
+            Path destDir = WarehouseFiles.isJpg(name) ? jpgTargetDir : rawTargetDir;
+            Path dest = destDir.resolve(name).normalize();
+            try {
+                if (!WarehouseLayout.isInside(rootReal, dest)) {
+                    skip(name, "目标超出片仓");
+                } else if (!WarehouseFiles.moveIfAbsent(file, dest)) {
+                    skip(name, "目标已存在");
                 }
-                processedFiles.incrementAndGet();
-            });
-        } catch (IOException e) {
-            log.error("Failed to list root directory: {}", e.getMessage());
+            } catch (IOException e) {
+                skip(name, e.getMessage());
+            }
+            processedFiles.incrementAndGet();
         }
 
-        log.info("Classification complete: {} files processed", processedFiles.get());
-
-        // 更新仓库路径为 JPG/ 子目录
-        String jpgPath = warehousePath.replace("\\", "/") + "/JPG";
-        if (!warehouseService.listWarehouses().isEmpty()) {
-            warehouseService.getActiveWarehouse().setPath(jpgPath);
-        }
-
-        classifying = false;
-        currentPhase = "分类完成";
+        warehouseService.updateWarehousePath(warehouseId, WarehouseLayout.normalize(jpgTargetDir.toString()));
+        currentPhase = skipped.isEmpty() ? "分类完成" : "分类完成，跳过 " + skipped.size() + " 个文件";
+        log.info("Classification complete: processed={}, skipped={}", processedFiles.get(), skipped.size());
     }
 
-    /**
-     * 将照片复制到"选片"目录。
-     * 同时复制对应的 RAW 文件（如果存在）。
-     */
-    public static void copyToSelection(String warehousePath, String relativeJpgPath) {
-        String jpgFullPath = warehousePath + "/" + relativeJpgPath;
-        File jpgFile = new File(jpgFullPath);
-        if (!jpgFile.exists()) return;
+    private void skip(String name, String reason) {
+        skipped.add(name);
+        log.warn("跳过 {}: {}", name, reason);
+    }
 
-        // 复制 JPG 到 选片/JPG
-        File targetJpgDir = new File(new File(warehousePath).getParent(), "选片/JPG");
-        targetJpgDir.mkdirs();
-        File targetJpg = new File(targetJpgDir, jpgFile.getName());
-        try {
-            Files.copy(jpgFile.toPath(), targetJpg.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            log.warn("Failed to copy JPG to selection: {}", e.getMessage());
+    private static boolean directoryHasEntries(Path dir) throws IOException {
+        try (Stream<Path> entries = Files.list(dir)) {
+            return entries.findAny().isPresent();
         }
+    }
 
-        // 尝试找对应的 RAW 文件并复制到 选片/RAW
-        String baseName = jpgFile.getName().substring(0, jpgFile.getName().lastIndexOf('.'));
-        File rawDir = new File(new File(warehousePath).getParent(), "RAW");
-        if (rawDir.exists()) {
-            File[] rawFiles = rawDir.listFiles((dir, name) -> {
-                if (name.startsWith(baseName)) {
-                    return isRaw(name);
-                }
+    private static boolean shouldMove(Path rootReal, Path file) {
+        try {
+            String name = file.getFileName().toString();
+            if (!WarehouseFiles.isJpg(name) && !WarehouseFiles.isRaw(name)) {
                 return false;
-            });
-            if (rawFiles != null) {
-                File targetRawDir = new File(new File(warehousePath).getParent(), "选片/RAW");
-                targetRawDir.mkdirs();
-                for (File rawFile : rawFiles) {
-                    try {
-                        Files.copy(rawFile.toPath(), new File(targetRawDir, rawFile.getName()).toPath(),
-                                StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException e) {
-                        log.warn("Failed to copy RAW to selection: {}", e.getMessage());
-                    }
-                }
             }
+            if (Files.isSymbolicLink(file)) {
+                Path real = file.toRealPath().normalize();
+                return real.startsWith(rootReal) && Files.isRegularFile(real);
+            }
+            return Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS);
+        } catch (IOException e) {
+            return false;
         }
     }
 }

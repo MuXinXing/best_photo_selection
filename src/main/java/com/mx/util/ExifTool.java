@@ -1,69 +1,58 @@
 package com.mx.util;
 
 import com.drew.imaging.ImageMetadataReader;
-import com.drew.imaging.ImageProcessingException;
-import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
-import com.drew.metadata.Tag;
-import com.drew.metadata.exif.ExifDescriptorBase;
+import com.drew.metadata.exif.ExifIFD0Directory;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
 import com.mx.entity.PhotoExif;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
- * 照片 EXIF 信息读取工具（基于 metadata-extractor 库）
+ * 读取 JPG 的 EXIF。机身在 IFD0，曝光参数在 SubIFD。读失败时返回空结果，不中断扫描。
  */
 @Component
+@Log4j2
 public class ExifTool {
 
-    /** 打印所有 EXIF 标签（调试用） */
-    public void readerExif(String fileName) {
-        File photoFile = new File(fileName);
-        try {
-            Metadata metadata = ImageMetadataReader.readMetadata(photoFile);
-            for (Directory directory : metadata.getDirectories()) {
-                for (Tag tag : directory.getTags()) {
-                    System.out.println(tag);
-                }
-            }
-        } catch (ImageProcessingException | IOException e) {
-            throw new RuntimeException(e);
-        }
+    public String readDateTaken(String fileName) {
+        return readerSpecificExif(fileName).getDateTaken();
     }
 
-    /** 读取指定的 EXIF 信息：相机型号、光圈、快门、ISO、闪光灯、焦距、镜头、拍摄时间 */
     public PhotoExif readerSpecificExif(String fileName) {
-        File file = new File(fileName);
         PhotoExif photoExif = new PhotoExif();
         try {
-            Metadata metadata = ImageMetadataReader.readMetadata(file);
-            ExifSubIFDDirectory directory = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
-            if (directory == null) {
-                return photoExif;
+            Metadata metadata = ImageMetadataReader.readMetadata(new File(fileName));
+            ExifIFD0Directory ifd0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+            ExifSubIFDDirectory sub = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
+            if (ifd0 != null) {
+                photoExif.setCameraModel(ifd0.getDescription(ExifIFD0Directory.TAG_MODEL));
+                photoExif.setLenInfo(ifd0.getDescription(ExifIFD0Directory.TAG_LENS_MODEL));
+                if (photoExif.getDateTaken() == null) {
+                    photoExif.setDateTaken(ifd0.getDescription(ExifIFD0Directory.TAG_DATETIME));
+                }
             }
-            String makerNote = directory.getDescription(ExifSubIFDDirectory.TAG_MODEL);
-            String fNumber = directory.getDescription(ExifSubIFDDirectory.TAG_APERTURE);
-            String shutterSpeed = directory.getDescription(ExifSubIFDDirectory.TAG_SHUTTER_SPEED);
-            String isoSpeed = directory.getDescription(ExifSubIFDDirectory.TAG_ISO_EQUIVALENT);
-            String flash = directory.getDescription(ExifSubIFDDirectory.TAG_FLASH);
-            String focalLength = directory.getDescription(ExifSubIFDDirectory.TAG_FOCAL_LENGTH);
-            String lenInfo = directory.getDescription(ExifSubIFDDirectory.TAG_LENS_MODEL);
-            String dateTaken = directory.getDescription(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
-            photoExif.setMakerNote(makerNote);
-            photoExif.setFNumber(fNumber);
-            photoExif.setShutterSpeed(shutterSpeed);
-            photoExif.setIsoSpeed(isoSpeed);
-            photoExif.setFlash(flash);
-            photoExif.setFocalLength(focalLength);
-            photoExif.setLenInfo(lenInfo);
-            photoExif.setDateTaken(dateTaken);
+            if (sub != null) {
+                photoExif.setFNumber(sub.getDescription(ExifSubIFDDirectory.TAG_FNUMBER));
+                photoExif.setShutterSpeed(sub.getDescription(ExifSubIFDDirectory.TAG_EXPOSURE_TIME));
+                if (photoExif.getShutterSpeed() == null) {
+                    photoExif.setShutterSpeed(sub.getDescription(ExifSubIFDDirectory.TAG_SHUTTER_SPEED));
+                }
+                photoExif.setIsoSpeed(sub.getDescription(ExifSubIFDDirectory.TAG_ISO_EQUIVALENT));
+                photoExif.setFlash(sub.getDescription(ExifSubIFDDirectory.TAG_FLASH));
+                photoExif.setFocalLength(sub.getDescription(ExifSubIFDDirectory.TAG_FOCAL_LENGTH));
+                if (photoExif.getLenInfo() == null) {
+                    photoExif.setLenInfo(sub.getDescription(ExifSubIFDDirectory.TAG_LENS_MODEL));
+                }
+                String original = sub.getDescription(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+                if (original != null) {
+                    photoExif.setDateTaken(original);
+                }
+            }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.debug("读取 EXIF 失败 {}: {}", fileName, e.getMessage());
         }
         return photoExif;
     }

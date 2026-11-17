@@ -38,4 +38,8 @@ public class PhotoItem {
     public static final String STATUS_UNMARKED = "unmarked";
     public static final String STATUS_SELECTED = "selected";
     public static final String STATUS_REJECTED = "rejected";
+
+    public static boolean isValidStatus(String status) {
+        return STATUS_UNMARKED.equals(status) || STATUS_SELECTED.equals(status) || STATUS_REJECTED.equals(status);
+    }
 }

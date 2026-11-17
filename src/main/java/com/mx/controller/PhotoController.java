@@ -7,38 +7,45 @@ import com.mx.service.PhotoService;
 import com.mx.service.ThumbnailService;
 import com.mx.service.WarehouseService;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/photos")
 @Log4j2
 public class PhotoController {
 
-    @Autowired
-    private PhotoService photoService;
+    private final PhotoService photoService;
+    private final ThumbnailService thumbnailService;
+    private final ClassificationService classificationService;
+    private final WarehouseService warehouseService;
 
-    @Autowired
-    private ThumbnailService thumbnailService;
+    public PhotoController(PhotoService photoService, ThumbnailService thumbnailService,
+                           ClassificationService classificationService, WarehouseService warehouseService) {
+        this.photoService = photoService;
+        this.thumbnailService = thumbnailService;
+        this.classificationService = classificationService;
+        this.warehouseService = warehouseService;
+    }
 
-    @Autowired
-    private ClassificationService classificationService;
-
-    @Autowired
-    private WarehouseService warehouseService;
-
-    /** 照片列表：支持按状态过滤、按字段排序、分页 */
     @GetMapping
     public ResponseEntity<Map<String, Object>> list(
             @RequestParam(name = "status", required = false, defaultValue = "all") String status,
@@ -46,118 +53,89 @@ public class PhotoController {
             @RequestParam(name = "order", required = false, defaultValue = "asc") String order,
             @RequestParam(name = "page", required = false, defaultValue = "1") int page,
             @RequestParam(name = "size", required = false, defaultValue = "60") int size) {
-        Map<String, Object> result = photoService.listPhotos(status, sort, order, page, size);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(photoService.listPhotos(status, sort, order, page, size));
     }
 
-    /** 单张照片详情（含完整 EXIF 信息） */
     @GetMapping("/{id}")
     public ResponseEntity<PhotoItem> get(@PathVariable("id") String id) {
-        try {
-            PhotoItem item = photoService.getPhoto(id);
-            return ResponseEntity.ok(item);
-        } catch (PhotoSelectionException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok(photoService.getPhoto(id));
     }
 
-    /** 返回 JPG 原图文件流（inline 方式在浏览器中直接显示） */
     @GetMapping("/{id}/file")
     public ResponseEntity<Resource> file(@PathVariable("id") String id) {
-        try {
-            File photoFile = photoService.getPhotoFile(id);
-            if (!photoFile.exists()) {
-                return ResponseEntity.notFound().build();
-            }
-            Resource resource = new FileSystemResource(photoFile);
-            String contentType = "image/jpeg";
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + photoFile.getName() + "\"")
-                    .body(resource);
-        } catch (PhotoSelectionException e) {
-            return ResponseEntity.notFound().build();
-        }
+        File photoFile = photoService.getPhotoFile(id);
+        ContentDisposition disposition = ContentDisposition.inline()
+                .filename(photoFile.getName(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(new FileSystemResource(photoFile));
     }
 
-    /** 返回指定宽度的缩略图（首次请求自动生成并缓存到磁盘） */
     @GetMapping("/{id}/thumbnail")
     public ResponseEntity<Resource> thumbnail(
             @PathVariable("id") String id,
             @RequestParam(name = "w", required = false, defaultValue = "400") int width) {
         try {
-            PhotoItem item = photoService.getPhoto(id);
+            PhotoItem item = photoService.requirePhoto(id);
             File thumbFile = thumbnailService.getThumbnail(id, width, item.getRelativePath());
             if (thumbFile == null || !thumbFile.exists()) {
                 return ResponseEntity.notFound().build();
             }
-            Resource resource = new FileSystemResource(thumbFile);
             return ResponseEntity.ok()
                     .contentType(MediaType.IMAGE_JPEG)
-                    .body(resource);
-        } catch (Exception e) {
+                    .body(new FileSystemResource(thumbFile));
+        } catch (IOException e) {
             log.warn("Failed to generate thumbnail for {}: {}", id, e.getMessage());
             return ResponseEntity.notFound().build();
         }
     }
 
-    /** 标记单张照片：selected / rejected / unmarked */
     @PostMapping("/{id}/mark")
     public ResponseEntity<Void> mark(@PathVariable("id") String id, @RequestBody Map<String, String> body) {
-        try {
-            String status = body.get("status");
-            if (status == null || (!PhotoItem.STATUS_SELECTED.equals(status)
-                    && !PhotoItem.STATUS_REJECTED.equals(status)
-                    && !PhotoItem.STATUS_UNMARKED.equals(status))) {
-                return ResponseEntity.badRequest().build();
-            }
-            photoService.markPhoto(id, status);
-            return ResponseEntity.ok().build();
-        } catch (PhotoSelectionException e) {
-            return ResponseEntity.notFound().build();
+        if (body == null) {
+            throw new IllegalArgumentException("请求体不能为空");
         }
-    }
-
-    /** 批量标记照片 */
-    @PostMapping("/batch-mark")
-    public ResponseEntity<Void> batchMark(@RequestBody List<Map<String, String>> marks) {
-        photoService.batchMark(marks);
+        photoService.markPhoto(id, body.get("status"));
         return ResponseEntity.ok().build();
     }
 
-    /** 获取全库统计数量 */
+    @PostMapping("/batch-mark")
+    public ResponseEntity<Map<String, Object>> batchMark(@RequestBody List<Map<String, String>> marks) {
+        return ResponseEntity.ok(photoService.batchMark(marks));
+    }
+
     @GetMapping("/statistics")
     public ResponseEntity<Map<String, Object>> statistics() {
         return ResponseEntity.ok(photoService.getStatistics());
     }
 
-    /** 触发仓库重新扫描 */
     @PostMapping("/rescan")
     public ResponseEntity<Map<String, Object>> rescan() {
         photoService.rescan();
         return ResponseEntity.ok(photoService.getStatistics());
     }
 
-    /** 触发仓库分类（将 JPG/RAW 移动到对应子目录） */
     @PostMapping("/classify")
     public ResponseEntity<Map<String, Object>> classify() {
         WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
         if (active == null) {
-            return ResponseEntity.badRequest().build();
+            throw new PhotoSelectionException("没有活动片仓", 400);
         }
-        CompletableFuture.runAsync(() ->
-                classificationService.classify(active.getPath(), warehouseService)
-        );
+        if (!classificationService.start(active.getId(), active.getPath())) {
+            throw new PhotoSelectionException("分类进行中", 409);
+        }
         return ResponseEntity.ok(Map.of("started", true));
     }
 
-    /** 获取分类进度 */
     @GetMapping("/classify/progress")
     public ResponseEntity<Map<String, Object>> classifyProgress() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("classifying", classificationService.isClassifying());
         result.put("progress", classificationService.getProgress());
         result.put("phase", classificationService.getCurrentPhase());
+        result.put("skipped", classificationService.getSkipped());
         return ResponseEntity.ok(result);
     }
 }

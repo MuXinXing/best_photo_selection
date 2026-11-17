@@ -2,12 +2,12 @@ package com.mx.entity;
 
 import lombok.Data;
 
-/** EXIF 元数据实体（从 JPG 照片中提取的拍摄参数） */
+/** EXIF 元数据（从 JPG 中提取的拍摄参数） */
 @Data
 public class PhotoExif {
 
-    /** 相机型号（从 TAG_MODEL 读取） */
-    private String makerNote;
+    /** 相机型号，来自 IFD0 TAG_MODEL */
+    private String cameraModel;
     /** 光圈值，如 f/2.8 */
     private String fNumber;
     /** 快门速度，如 1/250 */

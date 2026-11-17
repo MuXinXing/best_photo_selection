@@ -1,20 +1,25 @@
 package com.mx.service;
 
+import com.mx.event.ActiveWarehouseChangedEvent;
+import com.mx.exception.PhotoSelectionException;
+import com.mx.util.WarehouseLayout;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Log4j2
@@ -25,97 +30,237 @@ public class WarehouseService {
     private String configDir;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ApplicationEventPublisher eventPublisher;
+    private final ReentrantLock lock = new ReentrantLock();
 
     private final List<Warehouse> warehouses = new ArrayList<>();
     private Warehouse activeWarehouse;
+
+    public WarehouseService(ApplicationEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
+    }
 
     @PostConstruct
     public void init() {
         loadWarehouses();
     }
 
-    /** 获取所有已配置的仓库 */
     public List<Warehouse> listWarehouses() {
-        return warehouses;
+        lock.lock();
+        try {
+            return warehouses.stream().map(Warehouse::copy).toList();
+        } finally {
+            lock.unlock();
+        }
     }
 
-    /** 获取当前活动的仓库 */
     public Warehouse getActiveWarehouse() {
-        return activeWarehouse;
+        lock.lock();
+        try {
+            return activeWarehouse == null ? null : activeWarehouse.copy();
+        } finally {
+            lock.unlock();
+        }
     }
 
-    /** 添加新仓库，第一个添加的会自动设为当前仓库 */
     public Warehouse addWarehouse(String name, String path) {
-        Warehouse wh = new Warehouse();
-        wh.setId(UUID.randomUUID().toString());
-        wh.setName(name);
-        wh.setPath(normalizePath(path));
-        wh.setActive(warehouses.isEmpty());
-        warehouses.add(wh);
-        if (wh.isActive()) {
-            activeWarehouse = wh;
+        if (name == null || path == null) {
+            throw new IllegalArgumentException("仓库名称和路径不能为空");
         }
-        saveWarehouses();
-        log.info("Added warehouse: {} -> {}", name, path);
-        return wh;
+        String trimmedName = name.trim();
+        String normalizedPath = WarehouseLayout.normalize(path);
+        if (trimmedName.isEmpty() || normalizedPath.isEmpty()) {
+            throw new IllegalArgumentException("仓库名称和路径不能为空");
+        }
+        Warehouse created = new Warehouse();
+        created.setId(UUID.randomUUID().toString());
+        created.setName(trimmedName);
+        created.setPath(normalizedPath);
+        boolean publish = false;
+        lock.lock();
+        List<Warehouse> saved = copyWarehouses();
+        String previousActiveId = activeId();
+        try {
+            created.setActive(warehouses.isEmpty());
+            warehouses.add(created);
+            if (created.isActive()) {
+                activeWarehouse = created;
+                publish = true;
+            }
+            saveWarehouses();
+        } catch (RuntimeException e) {
+            restore(saved, previousActiveId);
+            throw e;
+        } finally {
+            lock.unlock();
+        }
+        if (publish) {
+            publishActive(created.getId());
+        }
+        log.info("Added warehouse: {} -> {}", trimmedName, normalizedPath);
+        return created.copy();
     }
 
-    /** 切换当前仓库 */
     public void setActive(String id) {
-        for (Warehouse wh : warehouses) {
-            wh.setActive(wh.getId().equals(id));
-            if (wh.isActive()) {
-                activeWarehouse = wh;
+        String activeId;
+        lock.lock();
+        List<Warehouse> saved = copyWarehouses();
+        String previousActiveId = activeId();
+        try {
+            Warehouse target = find(id);
+            if (target == null) {
+                throw new PhotoSelectionException("仓库不存在");
             }
+            for (Warehouse wh : warehouses) {
+                wh.setActive(wh.getId().equals(id));
+            }
+            activeWarehouse = target;
+            saveWarehouses();
+            activeId = target.getId();
+        } catch (RuntimeException e) {
+            restore(saved, previousActiveId);
+            throw e;
+        } finally {
+            lock.unlock();
         }
-        saveWarehouses();
-        log.info("Active warehouse switched to: {}", activeWarehouse != null ? activeWarehouse.getName() : "none");
+        publishActive(activeId);
+        log.info("Active warehouse switched to: {}", activeId);
     }
 
-    /** 删除仓库，如果删除的是当前仓库则自动切换到第一个 */
     public void removeWarehouse(String id) {
-        warehouses.removeIf(wh -> {
-            if (wh.getId().equals(id)) {
-                if (wh.isActive()) {
-                    activeWarehouse = null;
-                }
-                return true;
+        String activeId;
+        lock.lock();
+        List<Warehouse> saved = copyWarehouses();
+        String previousActiveId = activeId();
+        try {
+            boolean removed = warehouses.removeIf(wh -> wh.getId().equals(id));
+            if (!removed) {
+                throw new PhotoSelectionException("仓库不存在");
             }
-            return false;
-        });
-        if (activeWarehouse == null && !warehouses.isEmpty()) {
-            warehouses.get(0).setActive(true);
-            activeWarehouse = warehouses.get(0);
+            if (activeWarehouse != null && activeWarehouse.getId().equals(id)) {
+                activeWarehouse = null;
+            }
+            if (activeWarehouse == null && !warehouses.isEmpty()) {
+                warehouses.get(0).setActive(true);
+                activeWarehouse = warehouses.get(0);
+            }
+            for (Warehouse wh : warehouses) {
+                wh.setActive(activeWarehouse != null && wh.getId().equals(activeWarehouse.getId()));
+            }
+            saveWarehouses();
+            activeId = activeWarehouse == null ? "" : activeWarehouse.getId();
+        } catch (RuntimeException e) {
+            restore(saved, previousActiveId);
+            throw e;
+        } finally {
+            lock.unlock();
         }
-        saveWarehouses();
+        publishActive(activeId);
         log.info("Removed warehouse: {}", id);
     }
 
-    /** 从 JSON 文件加载仓库配置 */
+    /** 分类完成后把指定仓库的扫描路径改成 JPG/ 并落盘。只有它仍是活动仓时才重建索引。 */
+    public void updateWarehousePath(String id, String path) {
+        boolean publish = false;
+        String activeId = "";
+        lock.lock();
+        List<Warehouse> saved = copyWarehouses();
+        String previousActiveId = activeId();
+        try {
+            Warehouse target = find(id);
+            if (target == null) {
+                log.warn("Skip path update, warehouse missing: {}", id);
+                return;
+            }
+            target.setPath(WarehouseLayout.normalize(path));
+            saveWarehouses();
+            if (target.isActive()) {
+                publish = true;
+                activeId = target.getId();
+            }
+        } catch (RuntimeException e) {
+            restore(saved, previousActiveId);
+            throw e;
+        } finally {
+            lock.unlock();
+        }
+        if (publish) {
+            publishActive(activeId);
+        }
+        log.info("Warehouse {} path updated to {}", id, path);
+    }
+
+    private String activeId() {
+        return activeWarehouse == null ? null : activeWarehouse.getId();
+    }
+
+    private List<Warehouse> copyWarehouses() {
+        return warehouses.stream().map(Warehouse::copy).toList();
+    }
+
+    private void restore(List<Warehouse> saved, String activeId) {
+        warehouses.clear();
+        for (Warehouse wh : saved) {
+            warehouses.add(wh.copy());
+        }
+        activeWarehouse = activeId == null ? null : find(activeId);
+    }
+
+    private Warehouse find(String id) {
+        for (Warehouse wh : warehouses) {
+            if (wh.getId().equals(id)) {
+                return wh;
+            }
+        }
+        return null;
+    }
+
+    private void publishActive(String warehouseId) {
+        eventPublisher.publishEvent(new ActiveWarehouseChangedEvent(warehouseId));
+    }
+
     private void loadWarehouses() {
+        lock.lock();
         try {
             File configFile = getConfigFile();
-            if (configFile.exists()) {
-                List<Warehouse> loaded = objectMapper.readValue(configFile, new TypeReference<List<Warehouse>>() {});
-                warehouses.addAll(loaded);
-                activeWarehouse = warehouses.stream().filter(Warehouse::isActive).findFirst().orElse(null);
-                log.info("Loaded {} warehouses, active: {}", warehouses.size(), activeWarehouse != null ? activeWarehouse.getName() : "none");
-            } else {
+            if (!configFile.exists()) {
                 log.info("No warehouse config found, starting empty");
+                return;
             }
+            List<Warehouse> loaded = objectMapper.readValue(configFile, new TypeReference<List<Warehouse>>() {});
+            warehouses.clear();
+            Warehouse active = null;
+            for (Warehouse wh : loaded) {
+                if (wh.isActive() && active == null) {
+                    active = wh;
+                } else {
+                    wh.setActive(false);
+                }
+                warehouses.add(wh);
+            }
+            activeWarehouse = active;
+            log.info("Loaded {} warehouses, active: {}", warehouses.size(),
+                    activeWarehouse != null ? activeWarehouse.getName() : "none");
         } catch (Exception e) {
             log.error("Failed to load warehouses config", e);
+        } finally {
+            lock.unlock();
         }
     }
 
-    /** 将仓库配置写入 JSON 文件 */
     private void saveWarehouses() {
         try {
             File configFile = getConfigFile();
-            configFile.getParentFile().mkdirs();
-            objectMapper.writeValue(configFile, warehouses);
+            Path parent = configFile.toPath().getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Path tmp = configFile.toPath().resolveSibling(configFile.getName() + ".tmp");
+            objectMapper.writeValue(tmp.toFile(), warehouses);
+            Files.move(tmp, configFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
             log.error("Failed to save warehouses config", e);
+            throw new PhotoSelectionException("保存仓库配置失败", 500, e);
         }
     }
 
@@ -123,17 +268,20 @@ public class WarehouseService {
         return Paths.get(configDir, "warehouses.json").toFile();
     }
 
-    /** 统一路径格式为 Unix 风格，去除尾部斜杠 */
-    private String normalizePath(String path) {
-        return path.replace("\\", "/").replaceAll("/+$", "");
-    }
-
-    /** 仓库配置数据模型 */
     @Data
     public static class Warehouse {
         private String id;
         private String name;
         private String path;
         private boolean active;
+
+        Warehouse copy() {
+            Warehouse copy = new Warehouse();
+            copy.id = id;
+            copy.name = name;
+            copy.path = path;
+            copy.active = active;
+            return copy;
+        }
     }
 }

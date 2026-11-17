@@ -5,7 +5,16 @@ async function request(url, options = {}) {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      if (body && body.message) message = body.message
+    } catch (e) {
+      // 错误响应没有 JSON 时保留状态码
+    }
+    throw new Error(message)
+  }
   return res
 }
 

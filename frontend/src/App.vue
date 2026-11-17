@@ -47,6 +47,7 @@
     @switch="onSwitchWarehouse"
     @add="onAddWarehouse"
     @remove="onRemoveWarehouse"
+    @classify="onClassify"
     @close="showSettings = false"
   />
   <ClassificationModal
@@ -89,6 +90,7 @@ const classifyProgress = ref(0)
 const classifyPhase = ref('')
 
 async function onClassify() {
+  showSettings.value = false
   showClassify.value = true
   classifyProgress.value = 0
   classifyPhase.value = '正在准备整理...'
@@ -96,10 +98,16 @@ async function onClassify() {
     await api.classify()
     await pollClassifyProgress()
   } catch (e) {
-    console.error('Classification failed', e)
+    classifyPhase.value = e.message || '整理失败'
   }
-  await loadPhotos()
-  showClassify.value = false
+  if ((classifyPhase.value || '').includes('失败')) {
+    await new Promise(r => setTimeout(r, 1200))
+  }
+  try {
+    await fetchWarehouses()
+  } finally {
+    showClassify.value = false
+  }
 }
 
 async function pollClassifyProgress() {
@@ -150,13 +158,23 @@ const displayPhotos = computed(() =>
   reorderForColumns(photos.value, columnCount.value)
 )
 
+function resetPhotoCounts() {
+  photos.value = []
+  total.value = 0
+  selected.value = 0
+  rejected.value = 0
+  unmarked.value = 0
+}
+
 async function fetchWarehouses() {
   warehouses.value = await api.getWarehouses()
   const active = warehouses.value.find(w => w.active)
   activeId.value = active ? active.id : ''
-  if (activeId.value) {
-    await onClassify()
+  if (!activeId.value) {
+    resetPhotoCounts()
+    return
   }
+  await loadPhotos()
 }
 
 async function onSwitchWarehouse(id) {
