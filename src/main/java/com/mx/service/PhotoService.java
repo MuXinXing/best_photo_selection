@@ -272,7 +272,7 @@ public class PhotoService {
             }
             Path scanRoot = WarehouseLayout.scanRoot(active.getPath());
             if (!Files.isDirectory(scanRoot)) {
-                log.warn("Warehouse directory does not exist: {}", scanRoot);
+                log.warn("片仓目录不存在: {}", scanRoot);
                 statusData = new StatusData();
                 return jobs;
             }
@@ -306,10 +306,10 @@ public class PhotoService {
                 photoList.add(item);
                 jobs.add(new DateJob(generation, item.getId(), jpgPath.toString()));
             }
-            log.info("Scan completed: {} photos in {}", photoList.size(), active.getName());
+            log.info("扫描完成: {} 张照片，片仓 {}", photoList.size(), active.getName());
             return jobs;
         } catch (IOException e) {
-            log.error("Error scanning warehouse: {}", e.getMessage());
+            log.error("扫描片仓失败: {}", e.getMessage());
             return jobs;
         } finally {
             scanCompleted = true;
@@ -423,7 +423,7 @@ public class PhotoService {
                 item.setDateTaken(exif.getDateTaken());
             }
         } catch (RuntimeException e) {
-            log.debug("Failed to load EXIF for {}: {}", item.getFileName(), e.getMessage());
+            log.debug("读取照片 EXIF 失败 {}: {}", item.getFileName(), e.getMessage());
         }
     }
 
@@ -443,7 +443,7 @@ public class PhotoService {
                 statusData.photos = new LinkedHashMap<>();
             }
         } catch (Exception e) {
-            log.warn("Failed to load status data, starting fresh: {}", e.getMessage());
+            log.warn("读取标记文件失败，将从空白状态开始: {}", e.getMessage());
             statusData = new StatusData();
         }
     }
@@ -460,7 +460,7 @@ public class PhotoService {
             objectMapper.writeValue(tmp.toFile(), statusData);
             moveReplacing(tmp, statusFile.toPath());
         } catch (Exception e) {
-            log.error("Failed to save status data", e);
+            log.error("保存标记文件失败", e);
             throw new PhotoSelectionException("保存标记失败", 500, e);
         }
     }

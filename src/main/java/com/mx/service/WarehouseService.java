@@ -97,7 +97,7 @@ public class WarehouseService {
         if (publish) {
             publishActive(created.getId());
         }
-        log.info("Added warehouse: {} -> {}", trimmedName, normalizedPath);
+        log.info("已添加片仓: {} -> {}", trimmedName, normalizedPath);
         return created.copy();
     }
 
@@ -124,7 +124,7 @@ public class WarehouseService {
             lock.unlock();
         }
         publishActive(activeId);
-        log.info("Active warehouse switched to: {}", activeId);
+        log.info("当前片仓已切换为: {}", activeId);
     }
 
     public void removeWarehouse(String id) {
@@ -156,7 +156,7 @@ public class WarehouseService {
             lock.unlock();
         }
         publishActive(activeId);
-        log.info("Removed warehouse: {}", id);
+        log.info("已删除片仓: {}", id);
     }
 
     /** 分类完成后把指定仓库的扫描路径改成 JPG/ 并落盘。只有它仍是活动仓时才重建索引。 */
@@ -169,7 +169,7 @@ public class WarehouseService {
         try {
             Warehouse target = find(id);
             if (target == null) {
-                log.warn("Skip path update, warehouse missing: {}", id);
+                log.warn("片仓已不存在，跳过路径更新: {}", id);
                 return;
             }
             target.setPath(WarehouseLayout.normalize(path));
@@ -187,7 +187,7 @@ public class WarehouseService {
         if (publish) {
             publishActive(activeId);
         }
-        log.info("Warehouse {} path updated to {}", id, path);
+        log.info("片仓 {} 的路径已更新为 {}", id, path);
     }
 
     private String activeId() {
@@ -224,7 +224,7 @@ public class WarehouseService {
         try {
             File configFile = getConfigFile();
             if (!configFile.exists()) {
-                log.info("No warehouse config found, starting empty");
+                log.info("未找到片仓配置，从空白开始");
                 return;
             }
             List<Warehouse> loaded = objectMapper.readValue(configFile, new TypeReference<List<Warehouse>>() {});
@@ -239,10 +239,10 @@ public class WarehouseService {
                 warehouses.add(wh);
             }
             activeWarehouse = active;
-            log.info("Loaded {} warehouses, active: {}", warehouses.size(),
+            log.info("已加载 {} 个片仓，当前片仓: {}", warehouses.size(),
                     activeWarehouse != null ? activeWarehouse.getName() : "none");
         } catch (Exception e) {
-            log.error("Failed to load warehouses config", e);
+            log.error("读取片仓配置失败", e);
         } finally {
             lock.unlock();
         }
@@ -259,7 +259,7 @@ public class WarehouseService {
             objectMapper.writeValue(tmp.toFile(), warehouses);
             Files.move(tmp, configFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
-            log.error("Failed to save warehouses config", e);
+            log.error("保存片仓配置失败", e);
             throw new PhotoSelectionException("保存仓库配置失败", 500, e);
         }
     }

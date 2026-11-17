@@ -58,7 +58,7 @@ public class ThumbnailService {
                     .outputQuality(0.85)
                     .outputFormat("jpg")
                     .toFile(cache.toFile());
-            log.debug("Generated thumbnail: {} ({}px)", cache.getFileName(), clamped);
+            log.debug("已生成缩略图: {}（{} 像素）", cache.getFileName(), clamped);
             return cache.toFile();
         }
     }

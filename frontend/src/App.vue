@@ -217,7 +217,7 @@ async function loadPhotos() {
     rejected.value = data.rejected || 0
     unmarked.value = data.unmarked || 0
   } catch (e) {
-    console.error('Failed to load photos', e)
+    console.error('加载照片失败', e)
   }
 }
 
@@ -243,7 +243,7 @@ async function onOpenLightbox(photo) {
   try {
     lightboxExif.value = await api.getPhoto(photo.id)
   } catch (e) {
-    console.error('Failed to load EXIF', e)
+    console.error('加载拍摄参数失败', e)
   }
 }
 
@@ -273,7 +273,7 @@ async function onMark(photo, status) {
     rejected.value = stats.rejected || 0
     unmarked.value = stats.unmarked || 0
   } catch (e) {
-    console.error('Failed to mark photo', e)
+    console.error('标记照片失败', e)
   }
 }
 

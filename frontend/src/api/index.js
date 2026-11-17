@@ -6,7 +6,7 @@ async function request(url, options = {}) {
     ...options
   })
   if (!res.ok) {
-    let message = `HTTP ${res.status}`
+    let message = `请求失败（${res.status}）`
     try {
       const body = await res.json()
       if (body && body.message) message = body.message

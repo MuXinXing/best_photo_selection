@@ -157,7 +157,7 @@ public class ClassificationService {
 
         warehouseService.updateWarehousePath(warehouseId, WarehouseLayout.normalize(jpgTargetDir.toString()));
         currentPhase = skipped.isEmpty() ? "分类完成" : "分类完成，跳过 " + skipped.size() + " 个文件";
-        log.info("Classification complete: processed={}, skipped={}", processedFiles.get(), skipped.size());
+        log.info("分类完成: 已处理 {} 个，跳过 {} 个", processedFiles.get(), skipped.size());
     }
 
     private void skip(String name, String reason) {

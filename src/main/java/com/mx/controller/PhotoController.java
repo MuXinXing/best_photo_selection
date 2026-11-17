@@ -87,7 +87,7 @@ public class PhotoController {
                     .contentType(MediaType.IMAGE_JPEG)
                     .body(new FileSystemResource(thumbFile));
         } catch (IOException e) {
-            log.warn("Failed to generate thumbnail for {}: {}", id, e.getMessage());
+            log.warn("生成缩略图失败 {}: {}", id, e.getMessage());
             return ResponseEntity.notFound().build();
         }
     }
