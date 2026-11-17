@@ -1,6 +1,6 @@
 package com.mx.util;
 
-import com.mx.entity.PhotoExif;
+import com.mx.model.bo.PhotoExif;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

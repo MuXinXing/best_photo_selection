@@ -5,28 +5,34 @@ async function request(url, options = {}) {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options
   })
-  if (!res.ok) {
-    let message = `请求失败（${res.status}）`
+  let body = null
+  const text = await res.text()
+  if (text) {
     try {
-      const body = await res.json()
-      if (body && body.message) message = body.message
+      body = JSON.parse(text)
     } catch (e) {
-      // 错误响应没有 JSON 时保留状态码
+      body = null
     }
+  }
+  if (!res.ok) {
+    const message = body && body.message ? body.message : `请求失败（${res.status}）`
     throw new Error(message)
   }
-  return res
+  if (body && Object.prototype.hasOwnProperty.call(body, 'data')) {
+    return body.data
+  }
+  return body
 }
 
 export function getWarehouses() {
-  return request('/warehouse').then(r => r.json())
+  return request('/warehouse')
 }
 
 export function addWarehouse(name, path) {
   return request('/warehouse', {
     method: 'POST',
     body: JSON.stringify({ name, path })
-  }).then(r => r.json())
+  })
 }
 
 export function switchWarehouse(id) {
@@ -43,13 +49,13 @@ export function getPhotos(params = {}) {
     sort: params.sort || 'name',
     order: params.order || 'asc',
     page: String(params.page > 0 ? params.page : 1),
-    size: String(params.size >= 0 ? params.size : 60)
+    pageSize: String(params.pageSize > 0 ? params.pageSize : 50)
   }).toString()
-  return request(`/photos?${qs}`).then(r => r.json())
+  return request(`/photos?${qs}`)
 }
 
 export function getPhoto(id) {
-  return request(`/photos/${id}`).then(r => r.json())
+  return request(`/photos/${id}`)
 }
 
 export function markPhoto(id, status) {
@@ -67,17 +73,17 @@ export function batchMark(marks) {
 }
 
 export function getStatistics() {
-  return request('/photos/statistics').then(r => r.json())
+  return request('/photos/statistics')
 }
 
 export function rescan() {
-  return request('/photos/rescan', { method: 'POST' }).then(r => r.json())
+  return request('/photos/rescan', { method: 'POST' })
 }
 
 export function classify() {
-  return request('/photos/classify', { method: 'POST' }).then(r => r.json())
+  return request('/photos/classify', { method: 'POST' })
 }
 
 export function getClassifyProgress() {
-  return request('/photos/classify/progress').then(r => r.json())
+  return request('/photos/classify/progress')
 }

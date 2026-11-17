@@ -1,7 +1,8 @@
 package com.mx;
 
-import com.mx.service.ClassificationService;
-import com.mx.service.WarehouseService;
+import com.mx.logic.storage.ClassificationStorage;
+import com.mx.model.bo.WarehouseBO;
+import com.mx.service.IWarehouseService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -38,10 +39,10 @@ class PhotoSelectionFlowTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private ClassificationService classificationService;
+    private ClassificationStorage classificationService;
 
     @Autowired
-    private WarehouseService warehouseService;
+    private IWarehouseService warehouseService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -63,20 +64,20 @@ class PhotoSelectionFlowTest {
 
         String warehouseId = addWarehouse("主仓", bank);
 
-        MvcResult pageOne = mockMvc.perform(get("/api/photos").param("page", "1").param("size", "1").param("sort", "name"))
+        MvcResult pageOne = mockMvc.perform(get("/api/photos").param("page", "1").param("pageSize", "1").param("sort", "name"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.filtered").value(3))
-                .andExpect(jsonPath("$.rows.length()").value(1))
-                .andExpect(jsonPath("$.rows[0].fileName").value("IMG_1.JPG"))
+                .andExpect(jsonPath("$.data.total").value(3))
+                .andExpect(jsonPath("$.data.list.length()").value(1))
+                .andExpect(jsonPath("$.data.list[0].fileName").value("IMG_1.JPG"))
                 .andReturn();
-        mockMvc.perform(get("/api/photos").param("page", "2").param("size", "1").param("sort", "name"))
-                .andExpect(jsonPath("$.rows.length()").value(1))
-                .andExpect(jsonPath("$.rows[0].fileName").value("IMG_2.JPG"));
-        mockMvc.perform(get("/api/photos").param("page", "9").param("size", "1").param("sort", "name"))
-                .andExpect(jsonPath("$.rows.length()").value(0))
-                .andExpect(jsonPath("$.filtered").value(3));
+        mockMvc.perform(get("/api/photos").param("page", "2").param("pageSize", "1").param("sort", "name"))
+                .andExpect(jsonPath("$.data.list.length()").value(1))
+                .andExpect(jsonPath("$.data.list[0].fileName").value("IMG_2.JPG"));
+        mockMvc.perform(get("/api/photos").param("page", "9").param("pageSize", "1").param("sort", "name"))
+                .andExpect(jsonPath("$.data.list.length()").value(0))
+                .andExpect(jsonPath("$.data.total").value(3));
 
-        String firstId = com.jayway.jsonpath.JsonPath.read(pageOne.getResponse().getContentAsString(), "$.rows[0].id");
+        String firstId = com.jayway.jsonpath.JsonPath.read(pageOne.getResponse().getContentAsString(), "$.data.list[0].id");
         mockMvc.perform(post("/api/photos/" + firstId + "/mark")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"selected\"}"))
@@ -100,8 +101,8 @@ class PhotoSelectionFlowTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[{\"id\":\"" + firstId + "\",\"status\":\"nope\"},{\"id\":\"missing\",\"status\":\"selected\"}]"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.updated").value(0))
-                .andExpect(jsonPath("$.failed.length()").value(2));
+                .andExpect(jsonPath("$.data.updated").value(0))
+                .andExpect(jsonPath("$.data.failed.length()").value(2));
 
         mockMvc.perform(get("/api/photos/" + firstId + "/file"))
                 .andExpect(status().isOk())
@@ -117,7 +118,7 @@ class PhotoSelectionFlowTest {
         mockMvc.perform(put("/api/warehouse/" + emptyId + "/active"))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/photos").param("size", "0"))
-                .andExpect(jsonPath("$.total").value(0));
+                .andExpect(jsonPath("$.data.total").value(0));
         mockMvc.perform(post("/api/photos/" + firstId + "/mark")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"selected\"}"))
@@ -135,12 +136,12 @@ class PhotoSelectionFlowTest {
         assertTrue(Files.exists(bank.resolve("KEEP.jpg")));
         String savedPath = warehouseService.listWarehouses().stream()
                 .filter(item -> item.getId().equals(warehouseId))
-                .map(WarehouseService.Warehouse::getPath)
+                .map(WarehouseBO::getPath)
                 .findFirst()
                 .orElseThrow();
         assertTrue(savedPath.endsWith("/JPG"), savedPath);
         mockMvc.perform(get("/api/photos/classify/progress"))
-                .andExpect(jsonPath("$.progress").value(org.hamcrest.Matchers.lessThanOrEqualTo(100)));
+                .andExpect(jsonPath("$.data.progress").value(org.hamcrest.Matchers.lessThanOrEqualTo(100)));
 
         mockMvc.perform(post("/api/warehouse").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\" \",\"path\":\" \"}"))
                 .andExpect(status().isBadRequest());
@@ -153,7 +154,7 @@ class PhotoSelectionFlowTest {
                         .content("{\"name\":\"" + name + "\",\"path\":\"" + path + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        return com.jayway.jsonpath.JsonPath.read(result.getResponse().getContentAsString(), "$.id");
+        return com.jayway.jsonpath.JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
     }
 
     private void awaitClassification() throws InterruptedException {

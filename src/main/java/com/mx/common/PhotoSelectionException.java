@@ -1,4 +1,4 @@
-package com.mx.exception;
+package com.mx.common;
 
 /** 选片业务异常。httpStatus 由统一异常处理转成响应。 */
 public class PhotoSelectionException extends RuntimeException {

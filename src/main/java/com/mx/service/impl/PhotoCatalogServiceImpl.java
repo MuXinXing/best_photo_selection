@@ -1,9 +1,12 @@
-package com.mx.service;
+package com.mx.service.impl;
 
-import com.mx.entity.PhotoExif;
-import com.mx.entity.PhotoItem;
+import com.mx.model.bo.PhotoExif;
+import com.mx.model.bo.PhotoItem;
+import com.mx.model.bo.WarehouseBO;
 import com.mx.event.ActiveWarehouseChangedEvent;
-import com.mx.exception.PhotoSelectionException;
+import com.mx.common.PhotoSelectionException;
+import com.mx.service.IPhotoCatalogService;
+import com.mx.service.IWarehouseService;
 import com.mx.util.ExifTool;
 import com.mx.util.WarehouseFiles;
 import com.mx.util.WarehouseLayout;
@@ -39,13 +42,12 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Log4j2
-public class PhotoService {
+public class PhotoCatalogServiceImpl implements IPhotoCatalogService {
 
     private static final DateTimeFormatter SCAN_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final WarehouseService warehouseService;
+    private final IWarehouseService warehouseService;
     private final ExifTool exifTool;
-    private final ClassificationService classificationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ReentrantLock lock = new ReentrantLock();
     private final ExecutorService exifExecutor = Executors.newFixedThreadPool(2, runnable -> {
@@ -60,10 +62,9 @@ public class PhotoService {
     private boolean scanCompleted;
     private int scanGeneration;
 
-    public PhotoService(WarehouseService warehouseService, ExifTool exifTool, ClassificationService classificationService) {
+    public PhotoCatalogServiceImpl(IWarehouseService warehouseService, ExifTool exifTool) {
         this.warehouseService = warehouseService;
         this.exifTool = exifTool;
-        this.classificationService = classificationService;
     }
 
     @PreDestroy
@@ -132,9 +133,6 @@ public class PhotoService {
         if (!PhotoItem.isValidStatus(status)) {
             throw new IllegalArgumentException("不支持的标记状态");
         }
-        if (classificationService.isClassifying()) {
-            throw new PhotoSelectionException("仓库正在整理文件，请稍后再标记", 409);
-        }
         List<DateJob> jobs = List.of();
         try {
             lock.lock();
@@ -146,7 +144,7 @@ public class PhotoService {
                 if (item == null) {
                     throw new PhotoSelectionException("照片不存在");
                 }
-                WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
+                WarehouseBO active = warehouseService.getActiveWarehouse();
                 if (active == null) {
                     throw new PhotoSelectionException("没有活动片仓", 400);
                 }
@@ -221,7 +219,7 @@ public class PhotoService {
 
     public File getPhotoFile(String id) {
         PhotoItem item = requirePhoto(id);
-        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
+        WarehouseBO active = warehouseService.getActiveWarehouse();
         if (active == null) {
             throw new PhotoSelectionException("没有活动片仓", 400);
         }
@@ -265,7 +263,7 @@ public class PhotoService {
         int generation = ++scanGeneration;
         List<DateJob> jobs = new ArrayList<>();
         try {
-            WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
+            WarehouseBO active = warehouseService.getActiveWarehouse();
             if (active == null) {
                 statusData = new StatusData();
                 return jobs;

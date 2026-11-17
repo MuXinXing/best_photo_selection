@@ -4,7 +4,7 @@ import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.exif.ExifIFD0Directory;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
-import com.mx.entity.PhotoExif;
+import com.mx.model.bo.PhotoExif;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 

@@ -1,5 +1,7 @@
-package com.mx.service;
+package com.mx.logic.storage;
 
+import com.mx.model.bo.WarehouseBO;
+import com.mx.service.IWarehouseService;
 import com.mx.util.WarehouseLayout;
 import lombok.extern.log4j.Log4j2;
 import net.coobird.thumbnailator.Thumbnails;
@@ -17,14 +19,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 @Log4j2
-public class ThumbnailService {
+public class ThumbnailStorage {
 
     private static final String THUMBNAIL_DIR = ".thumbnails";
 
-    private final WarehouseService warehouseService;
+    private final IWarehouseService warehouseService;
     private final ConcurrentHashMap<String, Object> generationLocks = new ConcurrentHashMap<>();
 
-    public ThumbnailService(WarehouseService warehouseService) {
+    public ThumbnailStorage(IWarehouseService warehouseService) {
         this.warehouseService = warehouseService;
     }
 
@@ -32,7 +34,7 @@ public class ThumbnailService {
         if (photoId == null || !photoId.matches("[A-Za-z0-9_-]+")) {
             throw new IOException("非法照片编号");
         }
-        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
+        WarehouseBO active = warehouseService.getActiveWarehouse();
         if (active == null) {
             throw new IOException("没有活动片仓");
         }

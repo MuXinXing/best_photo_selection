@@ -1,11 +1,15 @@
 package com.mx.controller;
 
-import com.mx.entity.PhotoItem;
-import com.mx.exception.PhotoSelectionException;
-import com.mx.service.ClassificationService;
-import com.mx.service.PhotoService;
-import com.mx.service.ThumbnailService;
-import com.mx.service.WarehouseService;
+import com.mx.common.ApiResponse;
+import com.mx.logic.PhotoLogic;
+import com.mx.model.dto.PhotoMarkDTO;
+import com.mx.model.dto.PhotoMarkItemDTO;
+import com.mx.model.dto.PhotoQueryDTO;
+import com.mx.model.vo.BatchMarkVO;
+import com.mx.model.vo.ClassifyProgressVO;
+import com.mx.model.vo.PhotoPageVO;
+import com.mx.model.vo.PhotoVO;
+import com.mx.model.vo.StatisticsVO;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -24,46 +28,35 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/** 照片接口。只负责组参和返回，业务在 PhotoLogic。 */
 @RestController
 @RequestMapping("/api/photos")
 @Log4j2
 public class PhotoController {
 
-    private final PhotoService photoService;
-    private final ThumbnailService thumbnailService;
-    private final ClassificationService classificationService;
-    private final WarehouseService warehouseService;
+    private final PhotoLogic photoLogic;
 
-    public PhotoController(PhotoService photoService, ThumbnailService thumbnailService,
-                           ClassificationService classificationService, WarehouseService warehouseService) {
-        this.photoService = photoService;
-        this.thumbnailService = thumbnailService;
-        this.classificationService = classificationService;
-        this.warehouseService = warehouseService;
+    public PhotoController(PhotoLogic photoLogic) {
+        this.photoLogic = photoLogic;
     }
 
     @GetMapping
-    public ResponseEntity<Map<String, Object>> list(
-            @RequestParam(name = "status", required = false, defaultValue = "all") String status,
-            @RequestParam(name = "sort", required = false, defaultValue = "name") String sort,
-            @RequestParam(name = "order", required = false, defaultValue = "asc") String order,
-            @RequestParam(name = "page", required = false, defaultValue = "1") int page,
-            @RequestParam(name = "size", required = false, defaultValue = "60") int size) {
-        return ResponseEntity.ok(photoService.listPhotos(status, sort, order, page, size));
+    public ApiResponse<PhotoPageVO> list(PhotoQueryDTO query) {
+        return ApiResponse.ok(photoLogic.list(query));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PhotoItem> get(@PathVariable("id") String id) {
-        return ResponseEntity.ok(photoService.getPhoto(id));
+    public ApiResponse<PhotoVO> get(@PathVariable("id") String id) {
+        return ApiResponse.ok(photoLogic.detail(id));
     }
 
+    /** 原图是文件流，不包进 JSON。 */
     @GetMapping("/{id}/file")
     public ResponseEntity<Resource> file(@PathVariable("id") String id) {
-        File photoFile = photoService.getPhotoFile(id);
+        File photoFile = photoLogic.photoFile(id);
         ContentDisposition disposition = ContentDisposition.inline()
                 .filename(photoFile.getName(), StandardCharsets.UTF_8)
                 .build();
@@ -73,13 +66,13 @@ public class PhotoController {
                 .body(new FileSystemResource(photoFile));
     }
 
+    /** 缩略图是文件流，不包进 JSON。 */
     @GetMapping("/{id}/thumbnail")
     public ResponseEntity<Resource> thumbnail(
             @PathVariable("id") String id,
             @RequestParam(name = "w", required = false, defaultValue = "400") int width) {
         try {
-            PhotoItem item = photoService.requirePhoto(id);
-            File thumbFile = thumbnailService.getThumbnail(id, width, item.getRelativePath());
+            File thumbFile = photoLogic.thumbnail(id, width);
             if (thumbFile == null || !thumbFile.exists()) {
                 return ResponseEntity.notFound().build();
             }
@@ -93,49 +86,37 @@ public class PhotoController {
     }
 
     @PostMapping("/{id}/mark")
-    public ResponseEntity<Void> mark(@PathVariable("id") String id, @RequestBody Map<String, String> body) {
+    public ApiResponse<Void> mark(@PathVariable("id") String id, @RequestBody PhotoMarkDTO body) {
         if (body == null) {
             throw new IllegalArgumentException("请求体不能为空");
         }
-        photoService.markPhoto(id, body.get("status"));
-        return ResponseEntity.ok().build();
+        photoLogic.mark(id, body.getStatus());
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/batch-mark")
-    public ResponseEntity<Map<String, Object>> batchMark(@RequestBody List<Map<String, String>> marks) {
-        return ResponseEntity.ok(photoService.batchMark(marks));
+    public ApiResponse<BatchMarkVO> batchMark(@RequestBody List<PhotoMarkItemDTO> marks) {
+        return ApiResponse.ok(photoLogic.batchMark(marks));
     }
 
     @GetMapping("/statistics")
-    public ResponseEntity<Map<String, Object>> statistics() {
-        return ResponseEntity.ok(photoService.getStatistics());
+    public ApiResponse<StatisticsVO> statistics() {
+        return ApiResponse.ok(photoLogic.statistics());
     }
 
     @PostMapping("/rescan")
-    public ResponseEntity<Map<String, Object>> rescan() {
-        photoService.rescan();
-        return ResponseEntity.ok(photoService.getStatistics());
+    public ApiResponse<StatisticsVO> rescan() {
+        return ApiResponse.ok(photoLogic.rescan());
     }
 
     @PostMapping("/classify")
-    public ResponseEntity<Map<String, Object>> classify() {
-        WarehouseService.Warehouse active = warehouseService.getActiveWarehouse();
-        if (active == null) {
-            throw new PhotoSelectionException("没有活动片仓", 400);
-        }
-        if (!classificationService.start(active.getId(), active.getPath())) {
-            throw new PhotoSelectionException("分类进行中", 409);
-        }
-        return ResponseEntity.ok(Map.of("started", true));
+    public ApiResponse<Map<String, Boolean>> classify() {
+        photoLogic.startClassify();
+        return ApiResponse.ok(Map.of("started", true));
     }
 
     @GetMapping("/classify/progress")
-    public ResponseEntity<Map<String, Object>> classifyProgress() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("classifying", classificationService.isClassifying());
-        result.put("progress", classificationService.getProgress());
-        result.put("phase", classificationService.getCurrentPhase());
-        result.put("skipped", classificationService.getSkipped());
-        return ResponseEntity.ok(result);
+    public ApiResponse<ClassifyProgressVO> classifyProgress() {
+        return ApiResponse.ok(photoLogic.classifyProgress());
     }
 }

@@ -23,6 +23,11 @@
     :loading="loading"
     @open="onOpenLightbox"
   />
+  <div class="pager" v-if="pageCount > 1">
+    <button class="btn btn-sm" :disabled="page <= 1" @click="changePage(page - 1)">上一页</button>
+    <span class="pager-text">{{ page }} / {{ pageCount }}</span>
+    <button class="btn btn-sm" :disabled="page >= pageCount" @click="changePage(page + 1)">下一页</button>
+  </div>
   <StatusBar
     :total="total"
     :selected="selected"
@@ -33,8 +38,8 @@
     v-if="showLightbox"
     :photo="lightboxPhoto"
     :exif="lightboxExif"
-    :hasPrev="lightboxIndex > 0"
-    :hasNext="lightboxIndex < photos.length - 1"
+    :hasPrev="lightboxIndex > 0 || page > 1"
+    :hasNext="lightboxIndex < photos.length - 1 || page < pageCount"
     @prev="onLightboxPrev"
     @next="onLightboxNext"
     @mark="onMark"
@@ -84,6 +89,10 @@ const lightboxIndex = ref(-1)
 const statusFilter = ref('all')
 const sortBy = ref('name')
 const sortOrder = ref('asc')
+const page = ref(1)
+const pageSize = 50
+const filteredTotal = ref(0)
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredTotal.value / pageSize)))
 
 const showClassify = ref(false)
 const classifyProgress = ref(0)
@@ -164,12 +173,14 @@ function resetPhotoCounts() {
   selected.value = 0
   rejected.value = 0
   unmarked.value = 0
+  filteredTotal.value = 0
 }
 
 async function fetchWarehouses() {
   warehouses.value = await api.getWarehouses()
   const active = warehouses.value.find(w => w.active)
   activeId.value = active ? active.id : ''
+  page.value = 1
   if (!activeId.value) {
     resetPhotoCounts()
     return
@@ -208,11 +219,12 @@ async function loadPhotos() {
       status: statusFilter.value,
       sort: sortBy.value,
       order: sortOrder.value,
-      page: 1,
-      size: 0
+      page: page.value,
+      pageSize
     })
-    photos.value = data.rows || []
-    total.value = data.total || 0
+    photos.value = data.list || []
+    filteredTotal.value = data.total || 0
+    total.value = data.libraryTotal || 0
     selected.value = data.selected || 0
     rejected.value = data.rejected || 0
     unmarked.value = data.unmarked || 0
@@ -223,7 +235,14 @@ async function loadPhotos() {
 
 function onChangeFilter(status) {
   statusFilter.value = status
+  page.value = 1
   loadPhotos()
+}
+
+async function changePage(next) {
+  page.value = next
+  showLightbox.value = false
+  await loadPhotos()
 }
 
 function onChangeSort(sort) {
@@ -233,6 +252,7 @@ function onChangeSort(sort) {
     sortBy.value = sort
     sortOrder.value = 'asc'
   }
+  page.value = 1
   loadPhotos()
 }
 
@@ -247,15 +267,27 @@ async function onOpenLightbox(photo) {
   }
 }
 
-function onLightboxPrev() {
+async function onLightboxPrev() {
   if (lightboxIndex.value > 0) {
     onOpenLightbox(photos.value[lightboxIndex.value - 1])
+    return
+  }
+  if (page.value > 1) {
+    page.value -= 1
+    await loadPhotos()
+    if (photos.value.length) onOpenLightbox(photos.value[photos.value.length - 1])
   }
 }
 
-function onLightboxNext() {
+async function onLightboxNext() {
   if (lightboxIndex.value < photos.value.length - 1) {
     onOpenLightbox(photos.value[lightboxIndex.value + 1])
+    return
+  }
+  if (page.value < pageCount.value) {
+    page.value += 1
+    await loadPhotos()
+    if (photos.value.length) onOpenLightbox(photos.value[0])
   }
 }
 

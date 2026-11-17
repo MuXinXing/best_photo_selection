@@ -754,6 +754,20 @@ html, body {
   letter-spacing: 0.06em;
 }
 
+.pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px 12px;
+}
+
+.pager-text {
+  font-size: 13px;
+  font-family: var(--font-body);
+  color: var(--text-dim);
+}
+
 .form-row { margin-bottom: 10px; }
 
 .input {

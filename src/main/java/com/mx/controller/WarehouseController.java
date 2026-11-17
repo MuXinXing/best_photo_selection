@@ -1,8 +1,9 @@
 package com.mx.controller;
 
-import com.mx.service.WarehouseService;
-import lombok.extern.log4j.Log4j2;
-import org.springframework.http.ResponseEntity;
+import com.mx.common.ApiResponse;
+import com.mx.logic.WarehouseLogic;
+import com.mx.model.dto.WarehouseSaveDTO;
+import com.mx.model.vo.WarehouseVO;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,41 +14,37 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
+/** 片仓接口。只负责组参和返回，业务在 WarehouseLogic。 */
 @RestController
 @RequestMapping("/api/warehouse")
-@Log4j2
 public class WarehouseController {
 
-    private final WarehouseService warehouseService;
+    private final WarehouseLogic warehouseLogic;
 
-    public WarehouseController(WarehouseService warehouseService) {
-        this.warehouseService = warehouseService;
+    public WarehouseController(WarehouseLogic warehouseLogic) {
+        this.warehouseLogic = warehouseLogic;
     }
 
     @GetMapping
-    public ResponseEntity<List<WarehouseService.Warehouse>> list() {
-        return ResponseEntity.ok(warehouseService.listWarehouses());
+    public ApiResponse<List<WarehouseVO>> list() {
+        return ApiResponse.ok(warehouseLogic.list());
     }
 
     @PostMapping
-    public ResponseEntity<WarehouseService.Warehouse> add(@RequestBody Map<String, String> body) {
-        if (body == null) {
-            throw new IllegalArgumentException("请求体不能为空");
-        }
-        return ResponseEntity.ok(warehouseService.addWarehouse(body.get("name"), body.get("path")));
+    public ApiResponse<WarehouseVO> add(@RequestBody WarehouseSaveDTO body) {
+        return ApiResponse.ok(warehouseLogic.add(body));
     }
 
     @PutMapping("/{id}/active")
-    public ResponseEntity<Void> setActive(@PathVariable("id") String id) {
-        warehouseService.setActive(id);
-        return ResponseEntity.ok().build();
+    public ApiResponse<Void> setActive(@PathVariable("id") String id) {
+        warehouseLogic.setActive(id);
+        return ApiResponse.ok(null);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> remove(@PathVariable("id") String id) {
-        warehouseService.removeWarehouse(id);
-        return ResponseEntity.ok().build();
+    public ApiResponse<Void> remove(@PathVariable("id") String id) {
+        warehouseLogic.remove(id);
+        return ApiResponse.ok(null);
     }
 }

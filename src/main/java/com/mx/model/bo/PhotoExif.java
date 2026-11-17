@@ -1,4 +1,4 @@
-package com.mx.entity;
+package com.mx.model.bo;
 
 import lombok.Data;
 

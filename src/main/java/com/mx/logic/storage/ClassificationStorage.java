@@ -1,5 +1,6 @@
-package com.mx.service;
+package com.mx.logic.storage;
 
+import com.mx.service.IWarehouseService;
 import com.mx.util.WarehouseFiles;
 import com.mx.util.WarehouseLayout;
 import lombok.extern.log4j.Log4j2;
@@ -25,9 +26,9 @@ import java.util.stream.Stream;
  */
 @Service
 @Log4j2
-public class ClassificationService {
+public class ClassificationStorage {
 
-    private final WarehouseService warehouseService;
+    private final IWarehouseService warehouseService;
     private final ExecutorService classificationExecutor;
 
     private final AtomicBoolean classifying = new AtomicBoolean(false);
@@ -36,7 +37,7 @@ public class ClassificationService {
     private final List<String> skipped = Collections.synchronizedList(new ArrayList<>());
     private volatile String currentPhase = "";
 
-    public ClassificationService(WarehouseService warehouseService,
+    public ClassificationStorage(IWarehouseService warehouseService,
                                  @Qualifier("classificationExecutor") ExecutorService classificationExecutor) {
         this.warehouseService = warehouseService;
         this.classificationExecutor = classificationExecutor;

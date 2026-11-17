@@ -1,8 +1,8 @@
-package com.mx.entity;
+package com.mx.model.bo;
 
 import lombok.Data;
 
-/** 照片数据传输对象（前端展示用，含 EXIF 摘要和标记状态） */
+/** 进程内照片对象，不直接返回给接口。 */
 @Data
 public class PhotoItem {
 

@@ -5,15 +5,11 @@
 .kotlin
 
 ### IntelliJ IDEA ###
-/.idea/
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+.idea/
 *.iws
 *.iml
 *.ipr
-
+.mvn/
 ### Eclipse ###
 .apt_generated
 .classpath
@@ -38,6 +34,7 @@ build/
 
 ### Mac OS ###
 .DS_Store
+.cursor/
 
 ### Others ###
 /摄影选图工具Web端设计PRD.md

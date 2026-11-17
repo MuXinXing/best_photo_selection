@@ -1,12 +1,13 @@
-package com.mx.service;
+package com.mx.service.impl;
 
 import com.mx.event.ActiveWarehouseChangedEvent;
-import com.mx.exception.PhotoSelectionException;
+import com.mx.common.PhotoSelectionException;
+import com.mx.model.bo.WarehouseBO;
+import com.mx.service.IWarehouseService;
 import com.mx.util.WarehouseLayout;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
-import lombok.Data;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,7 +24,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 @Log4j2
-public class WarehouseService {
+public class WarehouseServiceImpl implements IWarehouseService {
 
     /** 仓库配置文件存储在 ~/.photo-selection/warehouses.json */
     @Value("${app.config-dir}")
@@ -33,10 +34,10 @@ public class WarehouseService {
     private final ApplicationEventPublisher eventPublisher;
     private final ReentrantLock lock = new ReentrantLock();
 
-    private final List<Warehouse> warehouses = new ArrayList<>();
-    private Warehouse activeWarehouse;
+    private final List<WarehouseBO> warehouses = new ArrayList<>();
+    private WarehouseBO activeWarehouse;
 
-    public WarehouseService(ApplicationEventPublisher eventPublisher) {
+    public WarehouseServiceImpl(ApplicationEventPublisher eventPublisher) {
         this.eventPublisher = eventPublisher;
     }
 
@@ -45,16 +46,16 @@ public class WarehouseService {
         loadWarehouses();
     }
 
-    public List<Warehouse> listWarehouses() {
+    public List<WarehouseBO> listWarehouses() {
         lock.lock();
         try {
-            return warehouses.stream().map(Warehouse::copy).toList();
+            return warehouses.stream().map(WarehouseBO::copy).toList();
         } finally {
             lock.unlock();
         }
     }
 
-    public Warehouse getActiveWarehouse() {
+    public WarehouseBO getActiveWarehouse() {
         lock.lock();
         try {
             return activeWarehouse == null ? null : activeWarehouse.copy();
@@ -63,7 +64,7 @@ public class WarehouseService {
         }
     }
 
-    public Warehouse addWarehouse(String name, String path) {
+    public WarehouseBO addWarehouse(String name, String path) {
         if (name == null || path == null) {
             throw new IllegalArgumentException("仓库名称和路径不能为空");
         }
@@ -72,13 +73,13 @@ public class WarehouseService {
         if (trimmedName.isEmpty() || normalizedPath.isEmpty()) {
             throw new IllegalArgumentException("仓库名称和路径不能为空");
         }
-        Warehouse created = new Warehouse();
+        WarehouseBO created = new WarehouseBO();
         created.setId(UUID.randomUUID().toString());
         created.setName(trimmedName);
         created.setPath(normalizedPath);
         boolean publish = false;
         lock.lock();
-        List<Warehouse> saved = copyWarehouses();
+        List<WarehouseBO> saved = copyWarehouses();
         String previousActiveId = activeId();
         try {
             created.setActive(warehouses.isEmpty());
@@ -104,14 +105,14 @@ public class WarehouseService {
     public void setActive(String id) {
         String activeId;
         lock.lock();
-        List<Warehouse> saved = copyWarehouses();
+        List<WarehouseBO> saved = copyWarehouses();
         String previousActiveId = activeId();
         try {
-            Warehouse target = find(id);
+            WarehouseBO target = find(id);
             if (target == null) {
                 throw new PhotoSelectionException("仓库不存在");
             }
-            for (Warehouse wh : warehouses) {
+            for (WarehouseBO wh : warehouses) {
                 wh.setActive(wh.getId().equals(id));
             }
             activeWarehouse = target;
@@ -130,7 +131,7 @@ public class WarehouseService {
     public void removeWarehouse(String id) {
         String activeId;
         lock.lock();
-        List<Warehouse> saved = copyWarehouses();
+        List<WarehouseBO> saved = copyWarehouses();
         String previousActiveId = activeId();
         try {
             boolean removed = warehouses.removeIf(wh -> wh.getId().equals(id));
@@ -144,7 +145,7 @@ public class WarehouseService {
                 warehouses.get(0).setActive(true);
                 activeWarehouse = warehouses.get(0);
             }
-            for (Warehouse wh : warehouses) {
+            for (WarehouseBO wh : warehouses) {
                 wh.setActive(activeWarehouse != null && wh.getId().equals(activeWarehouse.getId()));
             }
             saveWarehouses();
@@ -164,10 +165,10 @@ public class WarehouseService {
         boolean publish = false;
         String activeId = "";
         lock.lock();
-        List<Warehouse> saved = copyWarehouses();
+        List<WarehouseBO> saved = copyWarehouses();
         String previousActiveId = activeId();
         try {
-            Warehouse target = find(id);
+            WarehouseBO target = find(id);
             if (target == null) {
                 log.warn("片仓已不存在，跳过路径更新: {}", id);
                 return;
@@ -194,20 +195,20 @@ public class WarehouseService {
         return activeWarehouse == null ? null : activeWarehouse.getId();
     }
 
-    private List<Warehouse> copyWarehouses() {
-        return warehouses.stream().map(Warehouse::copy).toList();
+    private List<WarehouseBO> copyWarehouses() {
+        return warehouses.stream().map(WarehouseBO::copy).toList();
     }
 
-    private void restore(List<Warehouse> saved, String activeId) {
+    private void restore(List<WarehouseBO> saved, String activeId) {
         warehouses.clear();
-        for (Warehouse wh : saved) {
+        for (WarehouseBO wh : saved) {
             warehouses.add(wh.copy());
         }
         activeWarehouse = activeId == null ? null : find(activeId);
     }
 
-    private Warehouse find(String id) {
-        for (Warehouse wh : warehouses) {
+    private WarehouseBO find(String id) {
+        for (WarehouseBO wh : warehouses) {
             if (wh.getId().equals(id)) {
                 return wh;
             }
@@ -227,10 +228,10 @@ public class WarehouseService {
                 log.info("未找到片仓配置，从空白开始");
                 return;
             }
-            List<Warehouse> loaded = objectMapper.readValue(configFile, new TypeReference<List<Warehouse>>() {});
+            List<WarehouseBO> loaded = objectMapper.readValue(configFile, new TypeReference<List<WarehouseBO>>() {});
             warehouses.clear();
-            Warehouse active = null;
-            for (Warehouse wh : loaded) {
+            WarehouseBO active = null;
+            for (WarehouseBO wh : loaded) {
                 if (wh.isActive() && active == null) {
                     active = wh;
                 } else {
@@ -266,22 +267,5 @@ public class WarehouseService {
 
     private File getConfigFile() {
         return Paths.get(configDir, "warehouses.json").toFile();
-    }
-
-    @Data
-    public static class Warehouse {
-        private String id;
-        private String name;
-        private String path;
-        private boolean active;
-
-        Warehouse copy() {
-            Warehouse copy = new Warehouse();
-            copy.id = id;
-            copy.name = name;
-            copy.path = path;
-            copy.active = active;
-            return copy;
-        }
     }
 }
